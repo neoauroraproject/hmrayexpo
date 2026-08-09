@@ -36,3 +36,13 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
         NEXT_PUBLIC_API_URL: /api
     image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/admin:${HMRAY_IMAGE_TAG:-latest}
+
+  panel:
+    build:
+      context: ./src
+      dockerfile: docker/admin.Dockerfile
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        NEXT_PUBLIC_API_URL: /api
+    image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/admin:${HMRAY_IMAGE_TAG:-latest}

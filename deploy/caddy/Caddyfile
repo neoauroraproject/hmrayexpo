@@ -1,5 +1,5 @@
 # HMRAY — TLS reverse proxy on a custom HTTPS port
-# Routes: /api/* and /health → api:4000, everything else → admin:3000
+# Routes: /api/* and /health → api:4000, everything else → panel:3000
 #
 # Let's Encrypt HTTP-01 needs host port 80 published to this container
 # (see docker-compose). Caddy binds :80 automatically for ACME even when
@@ -23,6 +23,6 @@
 	}
 
 	handle {
-		reverse_proxy http://admin:3000
+		reverse_proxy panel:3000
 	}
 }
