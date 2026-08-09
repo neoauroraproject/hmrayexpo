@@ -65,11 +65,55 @@ async function seedPaymentMethods() {
 }
 
 async function seedSettings() {
+  const defaultBotCopy = {
+    welcome: [
+      "سلام {name}!",
+      "",
+      "به ربات خرید HMRAY خوش اومدی.",
+      "کد مشتری تو: {customerCode}",
+      "",
+      "از دکمه‌های پایین هر کاری خواستی رو انجام بده.",
+    ].join("\n"),
+    welcomeBack: "سلام {name}، خوش برگشتی!",
+    channelGateMessage: [
+      "برای استفاده از ربات، اول باید عضو کانال‌های زیر بشی.",
+      "بعد از عضویت، «✅ عضو شدم» رو بزن.",
+    ].join("\n"),
+    rulesText: [
+      "قوانین و هزینه‌ها، خلاصه:",
+      "",
+      "• قیمت هر کالا رو جدا بررسی و اعلام می‌کنیم، معمولاً تا ۳ روز کاری.",
+      "• هزینه ارسال جدا از قیمت کالاست و توی پیش‌فاکتور مشخص می‌شه.",
+      "• تا وقتی پیش‌فاکتور رو تأیید نکردی، هیچ پرداختی انجام نمی‌شه.",
+      "• پرداخت فقط بعد از تأیید پیش‌فاکتور و با روش‌های اعلام‌شده انجام می‌شه.",
+      "• بعد از پرداخت و تأیید، سفارش ثبت و پیگیری می‌شه.",
+      "• برای هر سؤال دیگه، از بخش «پشتیبانی» با ما در تماس باش.",
+    ].join("\n"),
+    chooseRequestType: "می‌خوای از کجا خرید کنی؟",
+    maintenanceMessage: "ربات موقتاً در دسترس نیست. لطفاً کمی بعد دوباره سر بزن.",
+    menus: {
+      newRequest: "ثبت درخواست خرید",
+      myRequests: "درخواست‌های من",
+      trackOrder: "پیگیری سفارش",
+      myAddresses: "آدرس‌های من",
+      payments: "پرداخت‌ها",
+      rules: "قوانین و هزینه‌ها",
+      support: "پشتیبانی",
+    },
+    services: {
+      temu: "خرید از Temu",
+      external: "خرید از سایر فروشگاه‌ها",
+      temuEnabled: true,
+      externalEnabled: true,
+    },
+  };
+
   const settings: Array<{ key: string; value: unknown }> = [
     { key: "quoteValidityDays", value: 3 },
     { key: "defaultInspectionType", value: "FULL_OPEN" },
     { key: "temuBatchTargetOmr", value: 100 },
     { key: "botMaintenanceMode", value: false },
+    { key: "botCopy", value: defaultBotCopy },
   ];
 
   for (const setting of settings) {

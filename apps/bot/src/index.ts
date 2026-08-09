@@ -12,6 +12,11 @@ import { registerRulesHandler } from "./handlers/rules.js";
 import { registerStartHandler } from "./handlers/start.js";
 import { registerSupportHandlers } from "./handlers/support.js";
 import { registerTrackOrderHandlers } from "./handlers/track-order.js";
+import {
+  getBotCopy,
+  isBotMaintenanceMode,
+  startCopyPolling,
+} from "./runtime-copy.js";
 import { createSessionMiddleware } from "./session.js";
 import type { BotContext } from "./types.js";
 
@@ -20,8 +25,26 @@ async function main(): Promise<void> {
   const env = await resolveBotEnv();
   const api = new ApiClient(env.apiBaseUrl, env.botInternalSecret);
 
+  startCopyPolling(env.apiBaseUrl, env.botInternalSecret);
+
   const bot = new Bot<BotContext>(env.telegramBotToken);
   bot.use(createSessionMiddleware(env.redisUrl));
+
+  // Maintenance gate: reply and skip all other handlers when enabled.
+  bot.use(async (ctx, next) => {
+    if (!isBotMaintenanceMode()) {
+      await next();
+      return;
+    }
+    const msg = getBotCopy().maintenanceMessage;
+    if (ctx.callbackQuery) {
+      await ctx.answerCallbackQuery({ text: msg.slice(0, 180) });
+      return;
+    }
+    if (ctx.message) {
+      await ctx.reply(msg);
+    }
+  });
 
   // Registration order matters: exact-text/`hears` handlers and command
   // handlers run first, mode-gated free-text/photo handlers run next inside

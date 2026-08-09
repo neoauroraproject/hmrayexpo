@@ -1,6 +1,7 @@
 import type { ApiClient, RequiredChannel } from "./api-client.js";
 import * as L from "./copy.js";
 import { channelGateInlineKeyboard } from "./menus.js";
+import { getBotCopy } from "./runtime-copy.js";
 import type { BotContext } from "./types.js";
 
 const MEMBER_STATUSES = new Set(["creator", "administrator", "member", "restricted"]);
@@ -54,7 +55,7 @@ export async function ensureChannelMembership(
   }
 
   ctx.session.channelsVerified = false;
-  await ctx.reply(L.CHANNEL_GATE_MESSAGE, {
+  await ctx.reply(getBotCopy().channelGateMessage || L.CHANNEL_GATE_MESSAGE, {
     reply_markup: channelGateInlineKeyboard(missing),
   });
   return false;

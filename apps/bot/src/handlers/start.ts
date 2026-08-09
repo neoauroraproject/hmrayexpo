@@ -1,7 +1,9 @@
+import { interpolateBotCopy } from "@hmray/shared";
 import type { ApiClient } from "../api-client.js";
-import { ensureChannelMembership } from "../channel-gate.js";
 import * as L from "../copy.js";
+import { ensureChannelMembership } from "../channel-gate.js";
 import { mainMenuKeyboard } from "../menus.js";
+import { getBotCopy } from "../runtime-copy.js";
 import { initialSession, type BotContext } from "../types.js";
 
 export function registerStartHandler(bot: import("grammy").Bot<BotContext>, api: ApiClient): void {
@@ -25,7 +27,12 @@ export function registerStartHandler(bot: import("grammy").Bot<BotContext>, api:
       if (!passed) return;
 
       const name = result.user.displayName ?? from.first_name ?? "دوست عزیز";
-      await ctx.reply(L.welcome(name, result.user.customerCode), {
+      const copy = getBotCopy();
+      const text = interpolateBotCopy(copy.welcome, {
+        name,
+        customerCode: result.user.customerCode,
+      });
+      await ctx.reply(text, {
         reply_markup: mainMenuKeyboard(),
       });
     } catch (err) {

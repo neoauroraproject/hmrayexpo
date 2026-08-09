@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { displayUserName, unwrapItems } from "@/lib/list";
 import { Card } from "@/app/components/ui/Card";
 import { StatusBadge } from "@/app/components/ui/StatusBadge";
 import Link from "next/link";
@@ -13,44 +14,29 @@ interface RequestItem {
   type: string;
   status: string;
   createdAt: string;
-  customer: {
+  user?: {
     id: string;
-    firstName: string;
-    lastName: string;
-    phone: string;
-  };
+    customerCode?: string | null;
+    displayName?: string | null;
+    phone?: string | null;
+  } | null;
 }
 
 export default function RequestsPage() {
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRequests = async () => {
+      setError(null);
       try {
-        const data = await apiFetch<RequestItem[]>("/admin/requests");
-        setRequests(data);
-      } catch (error) {
-        console.error("Failed to fetch requests:", error);
-        // Fallback for UI dev
-        setRequests([
-          {
-            id: "1",
-            code: "RQ-0001",
-            type: "TEMU",
-            status: "REQUESTED",
-            createdAt: new Date().toISOString(),
-            customer: { id: "c1", firstName: "علی", lastName: "رضایی", phone: "09123456789" }
-          },
-          {
-            id: "2",
-            code: "RQ-0002",
-            type: "EXTERNAL",
-            status: "QUOTED",
-            createdAt: new Date(Date.now() - 86400000).toISOString(),
-            customer: { id: "c2", firstName: "سارا", lastName: "احمدی", phone: "09129876543" }
-          }
-        ]);
+        const data = await apiFetch<unknown>("/admin/requests");
+        setRequests(unwrapItems<RequestItem>(data));
+      } catch (err: any) {
+        console.error("Failed to fetch requests:", err);
+        setRequests([]);
+        setError(err?.message || "خطا در بارگذاری درخواست‌ها");
       } finally {
         setLoading(false);
       }
@@ -61,10 +47,14 @@ export default function RequestsPage() {
 
   const mapStatus = (status: string): "draft" | "pending" | "payment" | "success" | "shipped" => {
     switch (status) {
-      case "REQUESTED": return "pending";
-      case "QUOTED": return "payment";
-      case "REJECTED": return "draft";
-      default: return "draft";
+      case "REQUESTED":
+        return "pending";
+      case "QUOTED":
+        return "payment";
+      case "REJECTED":
+        return "draft";
+      default:
+        return "draft";
     }
   };
 
@@ -73,6 +63,10 @@ export default function RequestsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-900">درخواست‌ها</h1>
       </div>
+
+      {error && (
+        <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
@@ -91,9 +85,7 @@ export default function RequestsPage() {
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
-                    <div className="animate-pulse flex justify-center">
-                      <div className="h-6 w-6 border-b-2 border-slate-900 rounded-full animate-spin"></div>
-                    </div>
+                    در حال بارگذاری...
                   </td>
                 </tr>
               ) : requests.length === 0 ? (
@@ -107,18 +99,20 @@ export default function RequestsPage() {
                   <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-900">{req.code}</td>
                     <td className="px-6 py-4">
-                      <div className="font-medium text-slate-900">{req.customer.firstName} {req.customer.lastName}</div>
-                      <div className="text-slate-500 text-xs mt-0.5" dir="ltr">{req.customer.phone}</div>
+                      <div className="font-medium text-slate-900">{displayUserName(req.user)}</div>
+                      <div className="text-slate-500 text-xs mt-0.5" dir="ltr">
+                        {req.user?.customerCode || req.user?.phone || "—"}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-slate-600">{req.type}</td>
                     <td className="px-6 py-4 text-slate-600" dir="ltr">
-                      {new Date(req.createdAt).toLocaleDateString('fa-IR')}
+                      {new Date(req.createdAt).toLocaleDateString("fa-IR")}
                     </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={mapStatus(req.status)} />
                     </td>
                     <td className="px-6 py-4 text-left">
-                      <Link 
+                      <Link
                         href={`/requests/${req.id}`}
                         className="inline-flex items-center justify-center p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
                         title="مشاهده جزئیات"

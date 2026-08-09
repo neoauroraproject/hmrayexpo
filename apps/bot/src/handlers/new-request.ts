@@ -1,7 +1,9 @@
 import type { Bot } from "grammy";
 import type { ApiClient, BotRequestItem } from "../api-client.js";
 import * as L from "../copy.js";
+import { matchMenu } from "../match-menu.js";
 import { collectingKeyboard, itemDeleteInlineKeyboard, mainMenuKeyboard, requestTypeInlineKeyboard } from "../menus.js";
+import { getBotCopy } from "../runtime-copy.js";
 import { downloadTelegramFile } from "../telegram-files.js";
 import type { BotContext } from "../types.js";
 import { isBusy, requireTelegramUserId, sayBusy } from "./guards.js";
@@ -43,18 +45,25 @@ async function openRequest(
 }
 
 export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient): void {
-  bot.hears(L.BTN_NEW_REQUEST, async (ctx) => {
+  bot.on("message:text").filter(matchMenu("newRequest"), async (ctx) => {
     if (isBusy(ctx)) {
       await sayBusy(ctx);
       return;
     }
-    await ctx.reply(L.CHOOSE_REQUEST_TYPE, { reply_markup: requestTypeInlineKeyboard() });
+    const copy = getBotCopy();
+    await ctx.reply(copy.chooseRequestType || L.CHOOSE_REQUEST_TYPE, {
+      reply_markup: requestTypeInlineKeyboard(),
+    });
   });
 
   bot.callbackQuery("newreq:temu", async (ctx) => {
     await ctx.answerCallbackQuery();
     if (isBusy(ctx)) {
       await sayBusy(ctx);
+      return;
+    }
+    if (!getBotCopy().services.temuEnabled) {
+      await ctx.reply(L.ERROR_GENERIC);
       return;
     }
     await openRequest(ctx, api, "TEMU");
@@ -64,6 +73,10 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
     await ctx.answerCallbackQuery();
     if (isBusy(ctx)) {
       await sayBusy(ctx);
+      return;
+    }
+    if (!getBotCopy().services.externalEnabled) {
+      await ctx.reply(L.ERROR_GENERIC);
       return;
     }
     ctx.session.mode = "awaiting_store_name";

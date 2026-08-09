@@ -1,18 +1,20 @@
 import { InlineKeyboard, Keyboard } from "grammy";
 import * as L from "./copy.js";
+import { getBotCopy } from "./runtime-copy.js";
 
 export function mainMenuKeyboard(): Keyboard {
+  const menus = getBotCopy().menus;
   return new Keyboard()
-    .text(L.BTN_NEW_REQUEST)
-    .text(L.BTN_MY_REQUESTS)
+    .text(menus.newRequest)
+    .text(menus.myRequests)
     .row()
-    .text(L.BTN_TRACK_ORDER)
-    .text(L.BTN_MY_ADDRESSES)
+    .text(menus.trackOrder)
+    .text(menus.myAddresses)
     .row()
-    .text(L.BTN_PAYMENTS)
-    .text(L.BTN_RULES)
+    .text(menus.payments)
+    .text(menus.rules)
     .row()
-    .text(L.BTN_SUPPORT)
+    .text(menus.support)
     .resized();
 }
 
@@ -30,10 +32,16 @@ export function cancelOnlyKeyboard(): Keyboard {
 }
 
 export function requestTypeInlineKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text(L.BTN_TEMU, "newreq:temu")
-    .row()
-    .text(L.BTN_EXTERNAL, "newreq:external");
+  const { services } = getBotCopy();
+  const keyboard = new InlineKeyboard();
+  if (services.temuEnabled) {
+    keyboard.text(services.temu, "newreq:temu");
+  }
+  if (services.externalEnabled) {
+    if (services.temuEnabled) keyboard.row();
+    keyboard.text(services.external, "newreq:external");
+  }
+  return keyboard;
 }
 
 export function channelGateInlineKeyboard(

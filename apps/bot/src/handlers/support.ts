@@ -1,12 +1,13 @@
 import type { Bot } from "grammy";
 import type { ApiClient } from "../api-client.js";
 import * as L from "../copy.js";
+import { matchMenu } from "../match-menu.js";
 import { cancelOnlyKeyboard, mainMenuKeyboard, yesNoInlineKeyboard } from "../menus.js";
 import type { BotContext } from "../types.js";
 import { isBusy, requireTelegramUserId, sayBusy } from "./guards.js";
 
 export function registerSupportHandlers(bot: Bot<BotContext>, api: ApiClient): void {
-  bot.hears(L.BTN_SUPPORT, async (ctx) => {
+  bot.on("message:text").filter(matchMenu("support"), async (ctx) => {
     if (isBusy(ctx)) {
       await sayBusy(ctx);
       return;

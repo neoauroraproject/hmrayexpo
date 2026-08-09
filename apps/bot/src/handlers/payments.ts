@@ -3,6 +3,7 @@ import { QuoteStatus } from "@hmray/types";
 import type { ApiClient } from "../api-client.js";
 import * as L from "../copy.js";
 import { quoteStatusLabel } from "../format.js";
+import { matchMenu } from "../match-menu.js";
 import { cancelOnlyKeyboard, mainMenuKeyboard, paymentsInlineKeyboard } from "../menus.js";
 import { downloadTelegramFile } from "../telegram-files.js";
 import type { BotContext } from "../types.js";
@@ -12,7 +13,7 @@ const AWAITING_PAYMENT_STATUSES = new Set<string>([QuoteStatus.SENT, QuoteStatus
 const PAYMENT_ID_PATTERN = /^P-[A-Za-z0-9]+$/i;
 
 export function registerPaymentsHandlers(bot: Bot<BotContext>, api: ApiClient): void {
-  bot.hears(L.BTN_PAYMENTS, async (ctx) => {
+  bot.on("message:text").filter(matchMenu("payments"), async (ctx) => {
     if (isBusy(ctx)) {
       await sayBusy(ctx);
       return;

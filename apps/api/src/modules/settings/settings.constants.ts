@@ -1,4 +1,5 @@
 import { InspectionType } from "@hmray/database";
+import { DEFAULT_BOT_COPY, mergeBotCopy } from "@hmray/shared";
 
 /**
  * Internal keys are machine-written state (never editable through the settings
@@ -13,6 +14,7 @@ export const SETTING_KEYS = {
   BOT_MAINTENANCE_MODE: "botMaintenanceMode",
   ADMIN_TELEGRAM_CHAT_ID: "adminTelegramChatId",
   NOTIFICATION_PREFS: "notificationPrefs",
+  BOT_COPY: "botCopy",
 } as const;
 
 /** Stored as internal so GET /settings never echoes the raw token. */
@@ -29,4 +31,5 @@ export const DEFAULTS = {
   defaultInspectionType: InspectionType.FULL_OPEN,
   temuBatchTargetOmr: 100,
   botMaintenanceMode: false,
+  botCopy: mergeBotCopy(DEFAULT_BOT_COPY),
 } as const;

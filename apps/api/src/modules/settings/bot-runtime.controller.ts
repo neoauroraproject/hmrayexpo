@@ -1,8 +1,9 @@
 import { Controller, Get, UseGuards } from "@nestjs/common";
+import { mergeBotCopy, type BotCopyConfig } from "@hmray/shared";
 import { BotSecretGuard } from "../../common/guards/bot-secret.guard";
 import { AppConfigService } from "../../common/config/app-config.service";
 import { SettingsService } from "../settings/settings.service";
-import { SETTING_KEYS, TELEGRAM_BOT_TOKEN_KEY } from "../settings/settings.constants";
+import { DEFAULTS, SETTING_KEYS, TELEGRAM_BOT_TOKEN_KEY } from "../settings/settings.constants";
 
 @Controller("bot")
 @UseGuards(BotSecretGuard)
@@ -18,9 +19,11 @@ export class BotRuntimeController {
    */
   @Get("runtime-config")
   async runtimeConfig() {
-    const [storedToken, storedChatId] = await Promise.all([
+    const [storedToken, storedChatId, botCopyRaw, maintenanceRaw] = await Promise.all([
       this.settings.getRaw(TELEGRAM_BOT_TOKEN_KEY),
       this.settings.getRaw(SETTING_KEYS.ADMIN_TELEGRAM_CHAT_ID),
+      this.settings.getJson<Partial<BotCopyConfig>>(SETTING_KEYS.BOT_COPY),
+      this.settings.getRaw(SETTING_KEYS.BOT_MAINTENANCE_MODE),
     ]);
 
     const telegramBotToken =
@@ -33,11 +36,18 @@ export class BotRuntimeController {
       this.config.adminTelegramChatId ||
       null;
 
+    const botMaintenanceMode =
+      typeof maintenanceRaw === "boolean"
+        ? maintenanceRaw
+        : DEFAULTS.botMaintenanceMode;
+
     return {
       telegramBotToken,
       adminTelegramChatId,
       webhookUrl: process.env.WEBHOOK_URL?.trim() || null,
       botMode: process.env.BOT_MODE?.trim() || "polling",
+      botCopy: mergeBotCopy(botCopyRaw),
+      botMaintenanceMode,
     };
   }
 }

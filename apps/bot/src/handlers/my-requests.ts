@@ -2,13 +2,14 @@ import type { Bot } from "grammy";
 import type { ApiClient } from "../api-client.js";
 import * as L from "../copy.js";
 import { requestStatusLabel, quoteStatusLabel } from "../format.js";
+import { matchMenu } from "../match-menu.js";
 import { continueDraftInlineKeyboard } from "../menus.js";
 import type { BotContext } from "../types.js";
 import { isBusy, requireTelegramUserId, sayBusy } from "./guards.js";
 import type { QuoteStatus, RequestStatus } from "@hmray/types";
 
 export function registerMyRequestsHandler(bot: Bot<BotContext>, api: ApiClient): void {
-  bot.hears(L.BTN_MY_REQUESTS, async (ctx) => {
+  bot.on("message:text").filter(matchMenu("myRequests"), async (ctx) => {
     if (isBusy(ctx)) {
       await sayBusy(ctx);
       return;

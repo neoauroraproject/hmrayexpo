@@ -2,13 +2,14 @@ import type { Bot } from "grammy";
 import type { ApiClient } from "../api-client.js";
 import * as L from "../copy.js";
 import { orderStatusLabel } from "../format.js";
+import { matchMenu } from "../match-menu.js";
 import { cancelOnlyKeyboard, mainMenuKeyboard } from "../menus.js";
 import type { BotContext } from "../types.js";
 import type { OrderStatus } from "@hmray/types";
 import { isBusy, sayBusy } from "./guards.js";
 
 export function registerTrackOrderHandlers(bot: Bot<BotContext>, api: ApiClient): void {
-  bot.hears(L.BTN_TRACK_ORDER, async (ctx) => {
+  bot.on("message:text").filter(matchMenu("trackOrder"), async (ctx) => {
     if (isBusy(ctx)) {
       await sayBusy(ctx);
       return;

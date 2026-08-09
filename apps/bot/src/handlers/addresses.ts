@@ -1,6 +1,7 @@
 import type { Bot } from "grammy";
 import type { ApiClient } from "../api-client.js";
 import * as L from "../copy.js";
+import { matchMenu } from "../match-menu.js";
 import { addressesInlineKeyboard, cancelOnlyKeyboard, mainMenuKeyboard } from "../menus.js";
 import { ADDRESS_FIELD_ORDER, type AddressField, type BotContext } from "../types.js";
 import { isBusy, requireTelegramUserId, sayBusy } from "./guards.js";
@@ -29,7 +30,7 @@ async function promptNextField(ctx: BotContext): Promise<void> {
 }
 
 export function registerAddressesHandlers(bot: Bot<BotContext>, api: ApiClient): void {
-  bot.hears(L.BTN_MY_ADDRESSES, async (ctx) => {
+  bot.on("message:text").filter(matchMenu("myAddresses"), async (ctx) => {
     if (isBusy(ctx)) {
       await sayBusy(ctx);
       return;
