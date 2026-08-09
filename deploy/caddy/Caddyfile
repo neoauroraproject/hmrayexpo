@@ -1,0 +1,21 @@
+# HMRAY — TLS reverse proxy on a custom port (production)
+# Routes: /api/* and /health → api:4000, everything else → admin:3000
+# Requires env: DOMAIN, PANEL_PORT, ACME_EMAIL (passed by docker-compose)
+
+{$DOMAIN}:{$PANEL_PORT} {
+	encode gzip
+
+	tls {$ACME_EMAIL}
+
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+
+	handle /health {
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy admin:3000
+	}
+}

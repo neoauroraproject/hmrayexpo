@@ -1,0 +1,1055 @@
+// HMRAY OMS database schema.
+// Money is always Decimal — never Float. Toman amounts use (18,2), FX rates and
+// foreign-currency prices use (18,4) so OMR (3 decimals) and USDT fit exactly.
+// Public codes (customerCode, code) are the human-facing IDs; internal keys are cuid().
+//
+// Run: pnpm db:generate && pnpm db:migrate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────
+
+enum RequestStatus {
+  REQUESTED
+  UNDER_REVIEW
+  QUOTED
+  EXPIRED
+  CANCELLED
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  EXPIRED
+  SUPERSEDED
+}
+
+enum PaymentStatus {
+  PENDING
+  UNDER_REVIEW
+  CONFIRMED
+  REJECTED
+  REFUNDED
+}
+
+enum PaymentSource {
+  BOT
+  WEB
+  SUPPORT
+  ADMIN
+}
+
+enum OrderStatus {
+  CONFIRMED
+  PAID
+  PURCHASING
+  PURCHASED
+  IN_TRANSIT_TO_OMAN
+  ARRIVED_OMAN
+  QUALITY_CHECK
+  READY_FOR_IRAN
+  SHIPPING_TO_IRAN
+  ARRIVED_IRAN
+  DOMESTIC_DELIVERY
+  DELIVERED
+  CANCELLED
+  RETURN_REQUESTED
+  RETURN_PROCESSING
+  REFUND_PENDING
+  REFUNDED
+}
+
+enum RequestType {
+  TEMU
+  EXTERNAL_STORE
+  MANUAL
+}
+
+enum InspectionType {
+  FULL_OPEN
+  VISUAL_ONLY
+  SEALED
+}
+
+enum AdminRole {
+  OWNER
+  ADMIN
+  SUPPORT
+  FINANCE
+  OPERATOR
+}
+
+enum NotificationEvent {
+  NEW_REQUEST
+  QUOTE_ACCEPTED
+  PAYMENT_SUBMITTED
+  PAYMENT_RECEIPT_UPLOADED
+  SUPPORT_MESSAGE
+  REFUND_REQUESTED
+  NEW_ORDER
+  ORDER_READY
+  QUALITY_ISSUE
+  TEMU_BATCH_READY
+  QUOTE_SENT
+  QUOTE_EXPIRED
+  PAYMENT_CONFIRMED
+  PAYMENT_REJECTED
+}
+
+enum Currency {
+  TOMAN
+  OMR
+  USD
+  USDT
+}
+
+enum RequestItemStatus {
+  ACTIVE
+  REMOVED
+  UNAVAILABLE
+  PRICED
+}
+
+enum NoteVisibility {
+  CUSTOMER
+  INTERNAL
+}
+
+enum TemuBatchStatus {
+  OPEN
+  READY
+  PURCHASING
+  PURCHASED
+  CANCELLED
+}
+
+enum PurchaseMode {
+  NORMAL
+  INSTANT
+}
+
+enum ReturnStatus {
+  RETURN_REQUESTED
+  ADMIN_REVIEW
+  RETURN_APPROVED
+  RETURN_TO_SELLER
+  REFUND
+  REJECTED
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SENDING
+  COMPLETED
+  FAILED
+}
+
+enum ShipmentStatus {
+  PENDING
+  IN_TRANSIT
+  ARRIVED
+  DELIVERED
+  CANCELLED
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+// Persistence-only enums (no TypeScript counterpart in @hmray/types —
+// import them from @prisma/client).
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  DELETED
+}
+
+enum OrderCreationMethod {
+  BOT
+  ADMIN_MANUAL
+}
+
+enum TrackingLeg {
+  SUPPLIER
+  INTERNATIONAL
+  IRAN
+  DOMESTIC
+}
+
+enum QualityCheckStatus {
+  PENDING
+  PASSED
+  FAILED
+  NEEDS_REVIEW
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum PaymentTransactionKind {
+  CHARGE
+  ADJUSTMENT
+  REFUND
+  FEE
+}
+
+enum WalletTransactionKind {
+  CREDIT
+  DEBIT
+  REFUND
+  ADJUSTMENT
+}
+
+// ─── Customer & Telegram ────────────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  customerCode String     @unique
+  status       UserStatus @default(ACTIVE)
+  displayName  String?
+  phone        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  telegramAccount TelegramAccount?
+  wallet          Wallet?
+  requests        PurchaseRequest[]
+  quotes          Quote[]
+  orders          Order[]
+  payments        Payment[]
+  addresses       Address[]
+  tickets         SupportTicket[]
+  notifications   Notification[]
+
+  @@index([status])
+  @@index([phone])
+  @@map("users")
+}
+
+model TelegramAccount {
+  id             String    @id @default(cuid())
+  telegramUserId BigInt    @unique
+  username       String?
+  firstName      String?
+  lastName       String?
+  language       String    @default("fa")
+  lastActivity   DateTime?
+  userId         String    @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([username])
+  @@map("telegram_accounts")
+}
+
+/// Channels the customer must join before using the bot.
+model RequiredChannel {
+  id         String   @id @default(cuid())
+  name       String
+  username   String   @unique
+  inviteLink String?
+  enabled    Boolean  @default(true)
+  required   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([enabled])
+  @@map("required_channels")
+}
+
+// ─── Requests ───────────────────────────────────────────────
+
+model PurchaseRequest {
+  id               String        @id @default(cuid())
+  code             String        @unique
+  type             RequestType
+  status           RequestStatus @default(REQUESTED)
+  purchaseMode     PurchaseMode?
+  storeName        String?
+  storeId          String?
+  userId           String
+  createdByAdminId String?
+  submittedAt      DateTime?
+  closedAt         DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store          Store?     @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  createdByAdmin AdminUser? @relation("RequestCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  items  RequestItem[]
+  quotes Quote[]
+  orders Order[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([storeId])
+  @@index([createdByAdminId])
+  @@index([createdAt])
+  @@map("purchase_requests")
+}
+
+model RequestItem {
+  id                String            @id @default(cuid())
+  requestId         String
+  displayIndex      Int
+  productCode       String
+  originalUrl       String?
+  images            String[]
+  telegramMessageId BigInt?
+  userNote          String?
+  adminNote         String?
+  status            RequestItemStatus @default(ACTIVE)
+  quantity          Int               @default(1)
+  price             Decimal?          @db.Decimal(18, 4)
+  currency          Currency?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  request    PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  quoteItems QuoteItem[]
+  orderItems OrderItem[]
+
+  @@unique([requestId, displayIndex])
+  @@index([requestId])
+  @@index([productCode])
+  @@index([status])
+  @@map("request_items")
+}
+
+// ─── Quotes ─────────────────────────────────────────────────
+
+model Quote {
+  id               String      @id @default(cuid())
+  code             String      @unique
+  status           QuoteStatus @default(DRAFT)
+  requestId        String
+  userId           String
+  omrRate          Decimal     @db.Decimal(18, 4)
+  rateCurrency     Currency    @default(OMR)
+  rateSetAt        DateTime    @default(now())
+  rateSetByAdminId String?
+  productsTotal    Decimal     @default(0) @db.Decimal(18, 2)
+  expiresAt        DateTime
+  /// Unguessable token used for the public web quote page.
+  publicToken      String      @unique
+  sentAt           DateTime?
+  viewedAt         DateTime?
+  acceptedAt       DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  request        PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rateSetByAdmin AdminUser?      @relation("QuoteRateSetByAdmin", fields: [rateSetByAdminId], references: [id], onDelete: SetNull)
+
+  items    QuoteItem[]
+  notes    QuoteNote[]
+  order    Order?
+  payments Payment[]
+
+  @@index([requestId])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([rateSetByAdminId])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id            String   @id @default(cuid())
+  quoteId       String
+  requestItemId String?
+  displayIndex  Int
+  productCode   String
+  title         String?
+  quantity      Int      @default(1)
+  price         Decimal  @db.Decimal(18, 4)
+  currency      Currency @default(TOMAN)
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  quote       Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  requestItem RequestItem? @relation(fields: [requestItemId], references: [id], onDelete: SetNull)
+  orderItems  OrderItem[]
+
+  @@unique([quoteId, displayIndex])
+  @@index([quoteId])
+  @@index([requestItemId])
+  @@index([productCode])
+  @@map("quote_items")
+}
+
+/// Free-text conditions/notes rendered under a quote.
+model QuoteNote {
+  id         String   @id @default(cuid())
+  quoteId    String
+  body       String
+  sortOrder  Int      @default(0)
+  isTemplate Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("quote_notes")
+}
+
+// ─── Orders ─────────────────────────────────────────────────
+
+model Order {
+  id             String              @id @default(cuid())
+  code           String              @unique
+  status         OrderStatus         @default(CONFIRMED)
+  inspectionType InspectionType      @default(FULL_OPEN)
+  purchaseMode   PurchaseMode        @default(NORMAL)
+  creationMethod OrderCreationMethod @default(BOT)
+  creationReason String?
+  quoteId        String              @unique
+  requestId      String
+  userId         String
+  totalToman     Decimal             @default(0) @db.Decimal(18, 2)
+  omrRate        Decimal?            @db.Decimal(18, 4)
+  deliveredAt    DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  quote   Quote           @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  request PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items          OrderItem[]
+  statusHistory  OrderStatusHistory[]
+  payments       Payment[]
+  tickets        SupportTicket[]
+  qualityChecks  QualityCheck[]
+  returnRequests ReturnRequest[]
+  refunds        Refund[]
+  shipment       Shipment?
+  temuBatchOrder TemuBatchOrder?
+
+  @@index([userId])
+  @@index([requestId])
+  @@index([status])
+  @@index([purchaseMode])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  quoteItemId   String?
+  requestItemId String?
+  displayIndex  Int
+  productCode   String
+  title         String?
+  quantity      Int      @default(1)
+  price         Decimal  @db.Decimal(18, 4)
+  currency      Currency @default(TOMAN)
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  quoteItem   QuoteItem?   @relation(fields: [quoteItemId], references: [id], onDelete: SetNull)
+  requestItem RequestItem? @relation(fields: [requestItemId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, displayIndex])
+  @@index([orderId])
+  @@index([productCode])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id               String       @id @default(cuid())
+  orderId          String
+  fromStatus       OrderStatus?
+  toStatus         OrderStatus
+  note             String?
+  changedByAdminId String?
+  createdAt        DateTime     @default(now())
+
+  order          Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedByAdmin AdminUser? @relation("OrderStatusChangedByAdmin", fields: [changedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@index([toStatus])
+  @@index([changedByAdminId])
+  @@map("order_status_history")
+}
+
+// ─── Money ──────────────────────────────────────────────────
+
+/// Append-only FX history; the newest row per currency is the live rate.
+model ExchangeRate {
+  id           String   @id @default(cuid())
+  currency     Currency
+  rateToToman  Decimal  @db.Decimal(18, 4)
+  setByAdminId String?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  setByAdmin AdminUser? @relation("ExchangeRateSetByAdmin", fields: [setByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([currency, createdAt])
+  @@index([setByAdminId])
+  @@map("exchange_rates")
+}
+
+model PaymentMethod {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  accountOrWallet String?
+  network         String?
+  instructions    String?
+  enabled         Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  payments Payment[]
+
+  @@index([enabled, sortOrder])
+  @@map("payment_methods")
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  code               String        @unique
+  amount             Decimal       @db.Decimal(18, 4)
+  currency           Currency      @default(TOMAN)
+  status             PaymentStatus @default(PENDING)
+  source             PaymentSource @default(BOT)
+  methodId           String
+  orderId            String?
+  quoteId            String?
+  userId             String
+  receiptUrl         String?
+  telegramMessageId  BigInt?
+  telegramChatId     BigInt?
+  transactionHash    String?
+  note               String?
+  receivedAt         DateTime?
+  receivedByAdminId  String?
+  confirmedAt        DateTime?
+  confirmedByAdminId String?
+  rejectedReason     String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  method           PaymentMethod @relation(fields: [methodId], references: [id], onDelete: Restrict)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order            Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  quote            Quote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  receivedByAdmin  AdminUser?    @relation("PaymentReceivedByAdmin", fields: [receivedByAdminId], references: [id], onDelete: SetNull)
+  confirmedByAdmin AdminUser?    @relation("PaymentConfirmedByAdmin", fields: [confirmedByAdminId], references: [id], onDelete: SetNull)
+
+  transactions PaymentTransaction[]
+  refunds      Refund[]
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([quoteId])
+  @@index([methodId])
+  @@index([status])
+  @@index([source])
+  @@index([transactionHash])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+model PaymentTransaction {
+  id        String                 @id @default(cuid())
+  paymentId String
+  kind      PaymentTransactionKind
+  amount    Decimal                @db.Decimal(18, 4)
+  meta      Json?
+  createdAt DateTime               @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([kind])
+  @@map("payment_transactions")
+}
+
+// ─── Addresses & Support ────────────────────────────────────
+
+model Address {
+  id            String   @id @default(cuid())
+  userId        String
+  recipientName String
+  mobile        String
+  province      String
+  city          String
+  address       String
+  postalCode    String
+  plaque        String?
+  unit          String?
+  notes         String?
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shipments Shipment[]
+
+  @@index([userId, isDefault])
+  @@map("addresses")
+}
+
+model SupportTicket {
+  id              String       @id @default(cuid())
+  code            String       @unique
+  userId          String
+  orderId         String?
+  status          TicketStatus @default(OPEN)
+  subject         String?
+  assignedAdminId String?
+  lastMessageAt   DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order         Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  assignedAdmin AdminUser? @relation("TicketAssignedAdmin", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+
+  messages SupportMessage[]
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([status])
+  @@index([assignedAdminId])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id                String   @id @default(cuid())
+  ticketId          String
+  body              String
+  fromAdmin         Boolean  @default(false)
+  adminId           String?
+  telegramMessageId BigInt?
+  attachmentUrl     String?
+  createdAt         DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  admin  AdminUser?    @relation("SupportMessageAdmin", fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@index([adminId])
+  @@map("support_messages")
+}
+
+// ─── Notifications ──────────────────────────────────────────
+
+model Notification {
+  id          String            @id @default(cuid())
+  userId      String?
+  adminUserId String?
+  event       NotificationEvent
+  title       String
+  body        String
+  readAt      DateTime?
+  meta        Json?
+  createdAt   DateTime          @default(now())
+
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminUser AdminUser? @relation("NotificationAdmin", fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([adminUserId, readAt])
+  @@index([event])
+  @@map("notifications")
+}
+
+model NotificationTemplate {
+  id        String            @id @default(cuid())
+  event     NotificationEvent @unique
+  titleFa   String?
+  bodyFa    String
+  enabled   Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@map("notification_templates")
+}
+
+// ─── Admin, RBAC & audit ────────────────────────────────────
+
+model AdminUser {
+  id             String    @id @default(cuid())
+  username       String    @unique
+  email          String?   @unique
+  passwordHash   String
+  displayName    String
+  role           AdminRole @default(OPERATOR)
+  isActive       Boolean   @default(true)
+  telegramUserId BigInt?   @unique
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  createdRequests    PurchaseRequest[]    @relation("RequestCreatedByAdmin")
+  quoteRatesSet      Quote[]              @relation("QuoteRateSetByAdmin")
+  orderStatusChanges OrderStatusHistory[] @relation("OrderStatusChangedByAdmin")
+  exchangeRates      ExchangeRate[]       @relation("ExchangeRateSetByAdmin")
+  paymentsReceived   Payment[]            @relation("PaymentReceivedByAdmin")
+  paymentsConfirmed  Payment[]            @relation("PaymentConfirmedByAdmin")
+  assignedTickets    SupportTicket[]      @relation("TicketAssignedAdmin")
+  supportMessages    SupportMessage[]     @relation("SupportMessageAdmin")
+  notifications      Notification[]       @relation("NotificationAdmin")
+  auditLogs          AuditLog[]           @relation("AuditLogActor")
+  entityNotes        EntityNote[]         @relation("EntityNoteAuthor")
+  qualityChecks      QualityCheck[]       @relation("QualityCheckAdmin")
+  reviewedReturns    ReturnRequest[]      @relation("ReturnReviewedByAdmin")
+  processedRefunds   Refund[]             @relation("RefundProcessedByAdmin")
+  broadcasts         Broadcast[]          @relation("BroadcastCreatedByAdmin")
+
+  @@index([role, isActive])
+  @@map("admin_users")
+}
+
+model RolePermission {
+  id         String    @id @default(cuid())
+  role       AdminRole
+  permission String
+  createdAt  DateTime  @default(now())
+
+  @@unique([role, permission])
+  @@index([role])
+  @@map("role_permissions")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorAdminId String?
+  action       String
+  entityType   String
+  entityId     String?
+  oldValue     Json?
+  newValue     Json?
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  actorAdmin AdminUser? @relation("AuditLogActor", fields: [actorAdminId], references: [id], onDelete: SetNull)
+
+  @@index([actorAdminId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+/// Polymorphic note attached to any entity (order, request, user, ...).
+model EntityNote {
+  id            String         @id @default(cuid())
+  entityType    String
+  entityId      String
+  visibility    NoteVisibility @default(INTERNAL)
+  body          String
+  authorAdminId String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  authorAdmin AdminUser? @relation("EntityNoteAuthor", fields: [authorAdminId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([visibility])
+  @@index([authorAdminId])
+  @@map("entity_notes")
+}
+
+// ─── Temu group buying ──────────────────────────────────────
+
+model TemuBatch {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  status      TemuBatchStatus @default(OPEN)
+  currentOmr  Decimal         @default(0) @db.Decimal(18, 4)
+  targetOmr   Decimal         @db.Decimal(18, 4)
+  deadline    DateTime?
+  purchasedAt DateTime?
+  note        String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  orders TemuBatchOrder[]
+
+  @@index([status])
+  @@index([deadline])
+  @@map("temu_batches")
+}
+
+model TemuBatchOrder {
+  id      String   @id @default(cuid())
+  batchId String
+  orderId String   @unique
+  addedAt DateTime @default(now())
+
+  batch TemuBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  order Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@map("temu_batch_orders")
+}
+
+// ─── Stores & shipping ──────────────────────────────────────
+
+model Store {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requests PurchaseRequest[]
+
+  @@index([enabled])
+  @@map("stores")
+}
+
+model ShippingMethod {
+  id         String   @id @default(cuid())
+  title      String
+  carrier    String?
+  isDomestic Boolean  @default(true)
+  enabled    Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  rates     ShippingRate[]
+  shipments Shipment[]
+
+  @@index([enabled, sortOrder])
+  @@map("shipping_methods")
+}
+
+/// Weight bracket pricing: either a flat priceToman or pricePerKg with a floor.
+model ShippingRate {
+  id         String   @id @default(cuid())
+  methodId   String
+  minKg      Decimal  @db.Decimal(8, 3)
+  maxKg      Decimal  @db.Decimal(8, 3)
+  priceToman Decimal? @db.Decimal(18, 2)
+  pricePerKg Decimal? @db.Decimal(18, 2)
+  minCharge  Decimal? @db.Decimal(18, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  method ShippingMethod @relation(fields: [methodId], references: [id], onDelete: Cascade)
+
+  @@index([methodId, minKg])
+  @@map("shipping_rates")
+}
+
+model Shipment {
+  id               String         @id @default(cuid())
+  orderId          String         @unique
+  status           ShipmentStatus @default(PENDING)
+  actualWeightKg   Decimal?       @db.Decimal(8, 3)
+  shippingCost     Decimal?       @db.Decimal(18, 2)
+  addressId        String?
+  shippingMethodId String?
+  domesticMethod   String?
+  shippedAt        DateTime?
+  deliveredAt      DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  address        Address?        @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  shippingMethod ShippingMethod? @relation(fields: [shippingMethodId], references: [id], onDelete: SetNull)
+
+  trackingEvents TrackingEvent[]
+
+  @@index([status])
+  @@index([addressId])
+  @@index([shippingMethodId])
+  @@map("shipments")
+}
+
+model TrackingEvent {
+  id             String      @id @default(cuid())
+  shipmentId     String
+  leg            TrackingLeg
+  trackingNumber String?
+  note           String?
+  occurredAt     DateTime    @default(now())
+  createdAt      DateTime    @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, occurredAt])
+  @@index([leg])
+  @@index([trackingNumber])
+  @@map("tracking_events")
+}
+
+// ─── Quality, returns & refunds ─────────────────────────────
+
+model QualityCheck {
+  id               String             @id @default(cuid())
+  orderId          String
+  status           QualityCheckStatus @default(PENDING)
+  notes            String?
+  mediaUrls        String[]
+  checkedByAdminId String?
+  checkedAt        DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  order          Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  checkedByAdmin AdminUser? @relation("QualityCheckAdmin", fields: [checkedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([checkedByAdminId])
+  @@map("quality_checks")
+}
+
+model ReturnRequest {
+  id                String       @id @default(cuid())
+  orderId           String
+  status            ReturnStatus @default(RETURN_REQUESTED)
+  reason            String?
+  notes             String?
+  reviewedByAdminId String?
+  resolvedAt        DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  order           Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reviewedByAdmin AdminUser? @relation("ReturnReviewedByAdmin", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+
+  refunds Refund[]
+
+  @@index([orderId])
+  @@index([status])
+  @@index([reviewedByAdminId])
+  @@map("return_requests")
+}
+
+model Refund {
+  id                 String       @id @default(cuid())
+  returnRequestId    String?
+  orderId            String
+  paymentId          String?
+  amount             Decimal      @db.Decimal(18, 2)
+  status             RefundStatus @default(PENDING)
+  /// FX rate captured when the refund was calculated.
+  rateSnapshot       Decimal?     @db.Decimal(18, 4)
+  note               String?
+  processedByAdminId String?
+  processedAt        DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  returnRequest    ReturnRequest? @relation(fields: [returnRequestId], references: [id], onDelete: SetNull)
+  order            Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment          Payment?       @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  processedByAdmin AdminUser?     @relation("RefundProcessedByAdmin", fields: [processedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([returnRequestId])
+  @@index([paymentId])
+  @@index([status])
+  @@map("refunds")
+}
+
+// ─── Broadcast ──────────────────────────────────────────────
+
+model Broadcast {
+  id               String          @id @default(cuid())
+  title            String
+  body             String
+  mediaUrl         String?
+  status           BroadcastStatus @default(DRAFT)
+  /// Audience filter, e.g. { "status": "ACTIVE", "hasOrders": true }
+  audience         Json
+  sentCount        Int             @default(0)
+  failedCount      Int             @default(0)
+  blockedCount     Int             @default(0)
+  createdByAdminId String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  createdByAdmin AdminUser? @relation("BroadcastCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([createdByAdminId])
+  @@map("broadcasts")
+}
+
+// ─── Wallet (Phase 2 stub) ──────────────────────────────────
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Decimal  @default(0) @db.Decimal(18, 2)
+  currency  Currency @default(TOMAN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id        String                @id @default(cuid())
+  walletId  String
+  amount    Decimal               @db.Decimal(18, 2)
+  kind      WalletTransactionKind
+  meta      Json?
+  createdAt DateTime              @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, createdAt])
+  @@index([kind])
+  @@map("wallet_transactions")
+}

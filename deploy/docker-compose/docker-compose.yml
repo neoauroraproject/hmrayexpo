@@ -1,0 +1,135 @@
+# HMRAY production stack — deployed to /opt/hmray by install.sh
+# Images are pulled from GHCR; configure via .env (HMRAY_IMAGE_PREFIX, HMRAY_IMAGE_TAG).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hmray}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-hmray}
+      TZ: ${TZ:-Asia/Tehran}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-hmray} -d ${POSTGRES_DB:-hmray}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Tehran}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    image: ${HMRAY_IMAGE_PREFIX:?HMRAY_IMAGE_PREFIX is required}/api:${HMRAY_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hmray}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hmray}?schema=public
+      REDIS_URL: redis://redis:6379
+      PORT: 4000
+      UPLOAD_DIR: /app/uploads
+      TZ: ${TZ:-Asia/Tehran}
+    volumes:
+      - uploads:/app/uploads
+      - backups:/app/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:4000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  bot:
+    image: ${HMRAY_IMAGE_PREFIX}/bot:${HMRAY_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      TZ: ${TZ:-Asia/Tehran}
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: ${HMRAY_IMAGE_PREFIX}/worker:${HMRAY_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hmray}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hmray}?schema=public
+      REDIS_URL: redis://redis:6379
+      TZ: ${TZ:-Asia/Tehran}
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  admin:
+    image: ${HMRAY_IMAGE_PREFIX}/admin:${HMRAY_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PANEL_PORT: 3000
+      TZ: ${TZ:-Asia/Tehran}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "${PANEL_PORT:-8443}:${PANEL_PORT:-8443}"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+      PANEL_PORT: ${PANEL_PORT:-8443}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+      TZ: ${TZ:-Asia/Tehran}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      admin:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:
+  backups:
+  caddy_data:
+  caddy_config:

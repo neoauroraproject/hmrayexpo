@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# HMRAY one-line remote installer (private GitHub repo).
+#
+# Usage (Ubuntu, as root):
+#
+#   curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
+#     https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install \
+#     | sudo -E bash
+#
+# Or with GitHub CLI already authenticated:
+#
+#   gh api -H "Accept: application/vnd.github.raw" \
+#     repos/neoauroraproject/hmrayexpo/contents/install | sudo -E bash
+#
+# Required: GH_TOKEN (repo read) or authenticated `gh` CLI.
+# Optional: HMRAY_REPO, HMRAY_REF, HMRAY_INSTALL_DIR, HMRAY_SRC_DIR
+
+set -euo pipefail
+
+REPO="${HMRAY_REPO:-neoauroraproject/hmrayexpo}"
+REF="${HMRAY_REF:-main}"
+INSTALL_DIR="${HMRAY_INSTALL_DIR:-/opt/hmray}"
+SRC_DIR="${HMRAY_SRC_DIR:-/opt/hmray/src}"
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+  die "Run as root (pipe into sudo -E bash)."
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+
+if ! command -v git >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+  apt-get update -qq
+  apt-get install -y -qq git curl ca-certificates
+fi
+
+resolve_clone() {
+  mkdir -p "$(dirname "$SRC_DIR")"
+  rm -rf "$SRC_DIR"
+
+  if [[ -n "${GH_TOKEN:-}" ]]; then
+    git clone --depth 1 --branch "$REF" \
+      "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
+      "$SRC_DIR"
+    # Drop token from remote URL after clone
+    git -C "$SRC_DIR" remote set-url origin "https://github.com/${REPO}.git"
+    return 0
+  fi
+
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    gh repo clone "$REPO" "$SRC_DIR" -- --depth 1 --branch "$REF"
+    return 0
+  fi
+
+  die "Set GH_TOKEN (PAT with repo scope) or run \`gh auth login\` first."
+}
+
+echo "=== HMRAY remote install ==="
+echo "Repo:    ${REPO}@${REF}"
+echo "Source:  ${SRC_DIR}"
+echo "Target:  ${INSTALL_DIR}"
+echo
+
+resolve_clone
+
+INSTALLER="${SRC_DIR}/deploy/installer/install.sh"
+[[ -f "$INSTALLER" ]] || die "Installer not found at ${INSTALLER}"
+chmod +x "$INSTALLER" "${SRC_DIR}/deploy/installer/"*.sh "${SRC_DIR}/deploy/scripts/"*.sh 2>/dev/null || true
+
+# Default image prefix to this private package namespace
+export HMRAY_IMAGE_PREFIX="${HMRAY_IMAGE_PREFIX:-ghcr.io/${REPO}}"
+export HMRAY_INSTALL_DIR="$INSTALL_DIR"
+
+# Run wizard from repo checkout so COMPOSE_SRC resolves correctly
+exec bash "$INSTALLER"

@@ -1,0 +1,26 @@
+# Deprecated overlay — production uses deploy/docker-compose/docker-compose.yml
+# copied to /opt/hmray by install.sh. Kept for reference only.
+
+services:
+  caddy:
+    restart: unless-stopped
+
+  api:
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+
+  bot:
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+
+  worker:
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+
+  admin:
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
