@@ -101,6 +101,24 @@ install_docker() {
   log "Docker installed."
 }
 
+# Postgres only reads POSTGRES_PASSWORD on first init. A new .env password
+# cannot unlock an existing volume — wipe postgres data on fresh config.
+reset_postgres_volume() {
+  log "Resetting Postgres volume for new database password..."
+  mkdir -p "$INSTALL_DIR"
+  cd "$INSTALL_DIR"
+  if [[ -f docker-compose.yml && -f .env ]]; then
+    compose down --remove-orphans >/dev/null 2>&1 || true
+  fi
+  # Project name defaults to directory name (hmray → hmray_postgres_data)
+  local vol
+  while IFS= read -r vol; do
+    [[ -n "$vol" ]] || continue
+    log "Removing volume: $vol"
+    docker volume rm -f "$vol" >/dev/null 2>&1 || true
+  done < <(docker volume ls -q | grep -E '(^|_)postgres_data$' || true)
+}
+
 write_env_file() {
   local jwt_secret bot_secret panel_url
   jwt_secret="$(random_secret)"
@@ -310,6 +328,8 @@ main() {
     DB_PASSWORD="$(random_secret)"
 
     write_env_file
+    # Must wipe BEFORE start — old volume keeps the previous password forever
+    reset_postgres_volume
   fi
 
   log "Copying compose files..."
