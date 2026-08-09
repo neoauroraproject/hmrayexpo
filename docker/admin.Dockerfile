@@ -35,5 +35,5 @@ COPY --from=builder /app ./
 WORKDIR /app/apps/admin
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
-  CMD wget -qO- http://127.0.0.1:3000/ >/dev/null 2>&1 || exit 1
+  CMD node -e "require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
 CMD ["sh", "-c", "exec ../../node_modules/.bin/next start -H 0.0.0.0 -p 3000"]
