@@ -25,7 +25,8 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       });
       setAuthToken(res.token);
-      router.push("/");
+      router.replace("/");
+      router.refresh();
     } catch (err: any) {
       setError(err.message || "ورود ناموفق بود. نام کاربری یا رمز عبور اشتباه است.");
     } finally {
