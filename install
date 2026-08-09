@@ -1,20 +1,14 @@
 #!/usr/bin/env bash
-# HMRAY Setup — one-line launcher with interactive menu (private GitHub).
+# HMRAY Setup — one-line launcher with interactive menu (public GitHub).
 #
-# Recommended (keeps keyboard interactive):
+# One-liner (Ubuntu):
 #
-#   curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
-#     -o /tmp/hmray-setup \
-#     https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install \
-#     && sudo -E bash /tmp/hmray-setup
+#   curl -fsSL https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install \
+#     -o /tmp/hmray-setup && sudo bash /tmp/hmray-setup
 #
-# Compact:
+# Even shorter after first install:
 #
-#   export GH_TOKEN=ghp_xxx
-#   curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -o /tmp/hmray-setup \
-#     https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install && sudo -E bash /tmp/hmray-setup
-#
-# If GH_TOKEN is unset, the menu will ask for it (reads from /dev/tty).
+#   sudo hmray
 
 set -euo pipefail
 
@@ -22,7 +16,6 @@ REPO="${HMRAY_REPO:-neoauroraproject/hmrayexpo}"
 REF="${HMRAY_REF:-main}"
 INSTALL_DIR="${HMRAY_INSTALL_DIR:-/opt/hmray}"
 SRC_DIR="${HMRAY_SRC_DIR:-/opt/hmray/src}"
-RAW_BASE="https://raw.githubusercontent.com/${REPO}/${REF}"
 
 # Prefer the controlling terminal so prompts work even after curl|bash
 TTY="${HMRAY_TTY:-/dev/tty}"
@@ -42,17 +35,9 @@ ask() {
   printf '%s' "$value"
 }
 
-ask_secret() {
-  local prompt="$1"
-  local value=""
-  read -r -s -p "${prompt}: " value <"$TTY" || true
-  echo >"$TTY"
-  printf '%s' "$value"
-}
-
 require_root() {
   if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-    die "با root اجرا کنید: sudo -E bash $0"
+    die "با root اجرا کنید: sudo bash $0"
   fi
 }
 
@@ -80,7 +65,6 @@ ensure_deps() {
   local need=()
   command -v curl >/dev/null 2>&1 || need+=(curl)
   command -v git >/dev/null 2>&1 || need+=(git)
-  command -v ca-certificates >/dev/null 2>&1 || true
   if ((${#need[@]})); then
     echo "→ Installing: ${need[*]} …"
     apt-get update -qq
@@ -88,46 +72,19 @@ ensure_deps() {
   fi
 }
 
-ensure_token() {
-  if [[ -n "${GH_TOKEN:-}" ]]; then
-    return 0
-  fi
-  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    return 0
-  fi
-
-  echo "ریپو خصوصی است؛ برای دانلود به GitHub Token نیاز است."
-  echo "PAT با دسترسی repo (+ read:packages برای GHCR)"
-  echo
-  GH_TOKEN="$(ask_secret "GitHub Token (GH_TOKEN)")"
-  [[ -n "$GH_TOKEN" ]] || die "بدون Token ادامه ممکن نیست."
-  export GH_TOKEN
-}
-
 fetch_src() {
-  ensure_token
   mkdir -p "$(dirname "$SRC_DIR")"
+  local origin="https://github.com/${REPO}.git"
 
   if [[ -d "${SRC_DIR}/.git" ]]; then
     echo "→ Updating source at ${SRC_DIR} …"
-    if [[ -n "${GH_TOKEN:-}" ]]; then
-      git -C "$SRC_DIR" remote set-url origin \
-        "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
-    fi
+    git -C "$SRC_DIR" remote set-url origin "$origin"
     git -C "$SRC_DIR" fetch --depth 1 origin "$REF"
     git -C "$SRC_DIR" checkout -B "$REF" "FETCH_HEAD"
-    git -C "$SRC_DIR" remote set-url origin "https://github.com/${REPO}.git" || true
   else
     echo "→ Cloning ${REPO}@${REF} …"
     rm -rf "$SRC_DIR"
-    if [[ -n "${GH_TOKEN:-}" ]]; then
-      git clone --depth 1 --branch "$REF" \
-        "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
-        "$SRC_DIR"
-      git -C "$SRC_DIR" remote set-url origin "https://github.com/${REPO}.git"
-    else
-      gh repo clone "$REPO" "$SRC_DIR" -- --depth 1 --branch "$REF"
-    fi
+    git clone --depth 1 --branch "$REF" "$origin" "$SRC_DIR"
   fi
 
   chmod +x "${SRC_DIR}/deploy/installer/"*.sh "${SRC_DIR}/deploy/scripts/"*.sh 2>/dev/null || true
@@ -135,7 +92,6 @@ fetch_src() {
 }
 
 install_cli_wrapper() {
-  # Persist a local launcher so next time:  sudo hmray
   mkdir -p "$INSTALL_DIR"
   cat >"${INSTALL_DIR}/hmray" <<EOF
 #!/usr/bin/env bash
@@ -220,10 +176,9 @@ EOF
 
 main() {
   require_root
-  [[ -r "$TTY" ]] || die "ترمینال تعاملی در دسترس نیست. با دستور پیشنهادی در README اجرا کنید (نه pipe ساده بدون /dev/tty)."
+  [[ -r "$TTY" ]] || die "ترمینال تعاملی در دسترس نیست. از دستور README استفاده کنید."
   ensure_deps
 
-  # Optional non-interactive shortcuts: sudo bash install install|update|...
   case "${1:-}" in
     install|i) run_install; exit 0 ;;
     update|u) run_update; exit 0 ;;

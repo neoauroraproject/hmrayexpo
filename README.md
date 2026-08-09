@@ -60,17 +60,12 @@ docker compose exec api node --import tsx /app/packages/database/prisma/seed.ts
 
 ## Production install (Ubuntu) — one line + menu
 
-ریپو خصوصی است. یک PAT با `repo` (+ `read:packages` برای GHCR) بساز، بعد:
-
 ```bash
-export GH_TOKEN=ghp_xxxxxxxx
-curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
-  -o /tmp/hmray-setup \
-  https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install \
-  && sudo -E bash /tmp/hmray-setup
+curl -fsSL https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install \
+  -o /tmp/hmray-setup && sudo bash /tmp/hmray-setup
 ```
 
-منوی تعاملی باز می‌شود:
+منوی تعاملی:
 
 ```text
 1) نصب جدید / نصب مجدد
@@ -81,9 +76,7 @@ curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
 0) خروج
 ```
 
-اگر `GH_TOKEN` از قبل export نشده باشد، خود منو Token را می‌پرسد.
-
-بعد از نصب اول، دوباره:
+بعد از نصب اول:
 
 ```bash
 sudo hmray
@@ -94,7 +87,7 @@ sudo hmray
 - Ubuntu 22.04+ with root/sudo
 - DNS A/AAAA pointing your domain to the server
 - Open panel port (default **8443**)
-- `GH_TOKEN` or authenticated `gh`
+- اگر Imageهای GHCR خصوصی باشند، موقع نصب Token اختیاری برای `docker login` می‌پرسد
 
 ### Publish images (maintainers)
 
