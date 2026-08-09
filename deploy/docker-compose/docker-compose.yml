@@ -117,6 +117,8 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
+      # Port 80 required for Let's Encrypt HTTP-01 (even if panel uses another HTTPS port)
+      - "80:80"
       - "${PANEL_PORT:-8443}:${PANEL_PORT:-8443}"
     environment:
       DOMAIN: ${DOMAIN:?DOMAIN is required}

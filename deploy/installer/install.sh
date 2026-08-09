@@ -143,7 +143,7 @@ JWT_EXPIRES_IN=7d
 ADMIN_USERNAME=${ADMIN_USERNAME}
 ADMIN_PASSWORD=${ADMIN_PASSWORD}
 ADMIN_EMAIL=admin@${DOMAIN}
-ADMIN_DISPLAY_NAME=HMRAY Owner
+ADMIN_DISPLAY_NAME="HMRAY Owner"
 
 # Telegram is configured later in Admin Panel → Settings
 TELEGRAM_BOT_TOKEN=
@@ -273,6 +273,25 @@ wait_for_api() {
   die "API did not become healthy in time. Check: docker compose -f ${INSTALL_DIR}/docker-compose.yml logs api"
 }
 
+wait_for_tls() {
+  local attempt=0
+  local url="https://${DOMAIN}:${PANEL_PORT}/health"
+  log "Waiting for Let's Encrypt on ${url} (DNS A record + firewall tcp/80 required)..."
+  while [[ $attempt -lt 24 ]]; do
+    if curl -sf --max-time 10 "$url" >/dev/null 2>&1; then
+      log "TLS ready: ${url}"
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    if [[ $((attempt % 4)) -eq 0 ]]; then
+      compose logs --tail=15 caddy || true
+    fi
+    sleep 5
+  done
+  log "WARNING: certificate not ready yet. Open tcp/80 and confirm DNS points here, then: docker compose --env-file .env logs caddy"
+  return 1
+}
+
 run_healthchecks() {
   log "Running health checks..."
   bash "${INSTALL_DIR}/scripts/healthcheck.sh"
@@ -373,6 +392,9 @@ main() {
   DOMAIN="${DOMAIN:-$(load_env_value DOMAIN || true)}"
   PANEL_PORT="${PANEL_PORT:-$(load_env_value PANEL_PORT || echo 8443)}"
   ADMIN_USERNAME="${ADMIN_USERNAME:-$(load_env_value ADMIN_USERNAME || echo owner)}"
+
+  wait_for_tls || log "Continue once DNS/port 80 are fixed — then restart: cd /opt/hmray && docker compose --env-file .env restart caddy"
+
   finish_ok
 }
 
