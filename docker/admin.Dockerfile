@@ -20,7 +20,7 @@ RUN pnpm install --frozen-lockfile || pnpm install
 FROM deps AS builder
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG NEXT_PUBLIC_API_URL=
+ARG NEXT_PUBLIC_API_URL=/api
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN pnpm --filter @hmray/admin... build
 
@@ -28,6 +28,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_API_URL=/api
 COPY --from=builder /app ./
 WORKDIR /app/apps/admin
 EXPOSE 3000

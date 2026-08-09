@@ -1,5 +1,5 @@
-# HMRAY production compose — builds images from local source at ./src
-# (populated by the installer into /opt/hmray/src).
+# HMRAY production compose — pulls pre-built images from GHCR (fast install).
+# Fallback local build lives in docker-compose.build.yml
 
 services:
   postgres:
@@ -37,14 +37,9 @@ services:
       retries: 10
 
   api:
-    build:
-      context: ./src
-      dockerfile: docker/api.Dockerfile
-      network: host
-      args:
-        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
-    image: hmray-api:local
+    image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/api:${HMRAY_IMAGE_TAG:-latest}
     restart: unless-stopped
+    pull_policy: always
     env_file: .env
     environment:
       NODE_ENV: production
@@ -73,14 +68,9 @@ services:
       start_period: 40s
 
   bot:
-    build:
-      context: ./src
-      dockerfile: docker/bot.Dockerfile
-      network: host
-      args:
-        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
-    image: hmray-bot:local
+    image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/bot:${HMRAY_IMAGE_TAG:-latest}
     restart: unless-stopped
+    pull_policy: always
     env_file: .env
     environment:
       NODE_ENV: production
@@ -95,14 +85,9 @@ services:
         condition: service_healthy
 
   worker:
-    build:
-      context: ./src
-      dockerfile: docker/worker.Dockerfile
-      network: host
-      args:
-        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
-    image: hmray-worker:local
+    image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/worker:${HMRAY_IMAGE_TAG:-latest}
     restart: unless-stopped
+    pull_policy: always
     env_file: .env
     environment:
       NODE_ENV: production
@@ -118,20 +103,14 @@ services:
         condition: service_healthy
 
   admin:
-    build:
-      context: ./src
-      dockerfile: docker/admin.Dockerfile
-      network: host
-      args:
-        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
-        NEXT_PUBLIC_API_URL: ${PUBLIC_URL}/api
-    image: hmray-admin:local
+    image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/admin:${HMRAY_IMAGE_TAG:-latest}
     restart: unless-stopped
+    pull_policy: always
     env_file: .env
     environment:
       NODE_ENV: production
       PANEL_PORT: 3000
-      NEXT_PUBLIC_API_URL: ${PUBLIC_URL}/api
+      NEXT_PUBLIC_API_URL: /api
       TZ: ${TZ:-Asia/Tehran}
 
   caddy:

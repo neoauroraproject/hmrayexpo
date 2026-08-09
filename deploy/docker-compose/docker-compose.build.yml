@@ -1,0 +1,38 @@
+# Optional local build fallback (slow). Prefer GHCR pull via docker-compose.yml.
+services:
+  api:
+    build:
+      context: ./src
+      dockerfile: docker/api.Dockerfile
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/api:${HMRAY_IMAGE_TAG:-latest}
+
+  bot:
+    build:
+      context: ./src
+      dockerfile: docker/bot.Dockerfile
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/bot:${HMRAY_IMAGE_TAG:-latest}
+
+  worker:
+    build:
+      context: ./src
+      dockerfile: docker/worker.Dockerfile
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/worker:${HMRAY_IMAGE_TAG:-latest}
+
+  admin:
+    build:
+      context: ./src
+      dockerfile: docker/admin.Dockerfile
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        NEXT_PUBLIC_API_URL: /api
+    image: ${HMRAY_IMAGE_PREFIX:-ghcr.io/neoauroraproject/hmrayexpo}/admin:${HMRAY_IMAGE_TAG:-latest}

@@ -1,4 +1,13 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+export function getApiUrl(): string {
+  // Same-origin via Caddy in production — no domain baked into the image.
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined") {
+    return "/api";
+  }
+  return "http://localhost:4000/api";
+}
 
 export function getAuthToken(): string | null {
   if (typeof window !== "undefined") {
@@ -25,9 +34,9 @@ interface FetchOptions extends RequestInit {
 
 export async function apiFetch<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
   const { params, headers, ...customConfig } = options;
-  
+
   const token = getAuthToken();
-  
+
   const config: RequestInit = {
     ...customConfig,
     headers: {
@@ -37,7 +46,7 @@ export async function apiFetch<T>(endpoint: string, options: FetchOptions = {}):
     },
   };
 
-  let url = `${API_URL}${endpoint}`;
+  let url = `${getApiUrl()}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
   if (params) {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -52,7 +61,7 @@ export async function apiFetch<T>(endpoint: string, options: FetchOptions = {}):
   }
 
   const response = await fetch(url, config);
-  
+
   if (!response.ok) {
     if (response.status === 401) {
       removeAuthToken();
@@ -64,15 +73,13 @@ export async function apiFetch<T>(endpoint: string, options: FetchOptions = {}):
     throw new Error(errorData.message || `API Error: ${response.status}`);
   }
 
-  // Handle empty responses
   const text = await response.text();
   return text ? JSON.parse(text) : ({} as T);
 }
 
-// Helper for multipart/form-data
 export async function apiUpload<T>(endpoint: string, formData: FormData): Promise<T> {
   const token = getAuthToken();
-  
+
   const config: RequestInit = {
     method: "POST",
     body: formData,
@@ -81,8 +88,11 @@ export async function apiUpload<T>(endpoint: string, formData: FormData): Promis
     },
   };
 
-  const response = await fetch(`${API_URL}${endpoint}`, config);
-  
+  const response = await fetch(
+    `${getApiUrl()}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`,
+    config,
+  );
+
   if (!response.ok) {
     if (response.status === 401) {
       removeAuthToken();

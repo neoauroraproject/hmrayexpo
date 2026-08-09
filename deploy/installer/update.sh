@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# HMRAY in-place updater — backup, rebuild from source, migrate, health.
+# HMRAY updater — pull latest GHCR images, migrate, health check.
 
 set -euo pipefail
 
@@ -33,8 +33,6 @@ main() {
   echo "=== HMRAY Update ==="
 
   [[ -f "$COMPOSE_FILE" ]] || die "Missing ${COMPOSE_FILE}"
-  [[ -d "$SRC_DIR" ]] || die "Missing source at ${SRC_DIR}"
-
   load_env
 
   echo "Creating database backup..."
@@ -43,6 +41,9 @@ main() {
   if [[ -f "${REPO_ROOT}/deploy/docker-compose/docker-compose.yml" ]]; then
     cp "${REPO_ROOT}/deploy/docker-compose/docker-compose.yml" "$COMPOSE_FILE"
   fi
+  if [[ -f "${REPO_ROOT}/deploy/docker-compose/docker-compose.build.yml" ]]; then
+    cp "${REPO_ROOT}/deploy/docker-compose/docker-compose.build.yml" "${INSTALL_DIR}/docker-compose.build.yml"
+  fi
   if [[ -f "${REPO_ROOT}/deploy/caddy/Caddyfile" ]]; then
     cp "${REPO_ROOT}/deploy/caddy/Caddyfile" "${INSTALL_DIR}/Caddyfile"
   fi
@@ -50,17 +51,19 @@ main() {
   cp "${REPO_ROOT}/deploy/scripts/backup-db.sh" "${INSTALL_DIR}/scripts/backup-db.sh"
   chmod +x "${INSTALL_DIR}/scripts/"*.sh
 
-  if [[ ! -e "${INSTALL_DIR}/src" ]]; then
-    ln -sfn "$SRC_DIR" "${INSTALL_DIR}/src"
-  fi
-
-  echo "Building images from source..."
-  export DOCKER_BUILDKIT=1
-  export COMPOSE_DOCKER_CLI_BUILD=1
-  if ! docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build; then
-    echo "Build failed — retrying with npmmirror..."
-    NPM_REGISTRY=https://registry.npmmirror.com \
-      docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build
+  echo "Pulling latest images from GHCR..."
+  if ! docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull; then
+    echo "Pull failed — falling back to local build..."
+    [[ -d "$SRC_DIR" ]] || die "Missing source at ${SRC_DIR}"
+    if [[ ! -e "${INSTALL_DIR}/src" ]]; then
+      ln -sfn "$SRC_DIR" "${INSTALL_DIR}/src"
+    fi
+    export DOCKER_BUILDKIT=1
+    docker compose \
+      -f "$COMPOSE_FILE" \
+      -f "${INSTALL_DIR}/docker-compose.build.yml" \
+      --env-file "$ENV_FILE" \
+      build
   fi
 
   echo "Recreating services..."

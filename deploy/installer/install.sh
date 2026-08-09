@@ -140,7 +140,11 @@ QUOTE_PUBLIC_BASE_URL=${panel_url}
 PUBLIC_URL=${panel_url}
 ADMIN_PUBLIC_URL=${panel_url}
 CORS_ORIGINS=${panel_url}
-NEXT_PUBLIC_API_URL=${panel_url}/api
+NEXT_PUBLIC_API_URL=/api
+
+# Pre-built images from GitHub Container Registry
+HMRAY_IMAGE_PREFIX=ghcr.io/neoauroraproject/hmrayexpo
+HMRAY_IMAGE_TAG=latest
 
 PORT=4000
 PANEL_PORT=${PANEL_PORT}
@@ -154,6 +158,34 @@ EOF
 
 compose() {
   docker compose -f "${INSTALL_DIR}/docker-compose.yml" --env-file "${INSTALL_DIR}/.env" "$@"
+}
+
+pull_or_build_images() {
+  log "Pulling pre-built images from GHCR (fast path)..."
+  if compose pull; then
+    log "Images pulled successfully."
+    return 0
+  fi
+
+  log "GHCR pull failed — falling back to local source build (slow)..."
+  local build_yml="${INSTALL_DIR}/docker-compose.build.yml"
+  if [[ ! -f "$build_yml" ]]; then
+    die "Missing ${build_yml} and GHCR pull failed."
+  fi
+  export DOCKER_BUILDKIT=1
+  export COMPOSE_DOCKER_CLI_BUILD=1
+  if ! docker compose \
+      -f "${INSTALL_DIR}/docker-compose.yml" \
+      -f "$build_yml" \
+      --env-file "${INSTALL_DIR}/.env" \
+      build; then
+    log "Retrying local build with npmmirror..."
+    NPM_REGISTRY=https://registry.npmmirror.com docker compose \
+      -f "${INSTALL_DIR}/docker-compose.yml" \
+      -f "$build_yml" \
+      --env-file "${INSTALL_DIR}/.env" \
+      build
+  fi
 }
 
 run_migrations() {
@@ -242,25 +274,21 @@ main() {
 
   log "Copying compose files..."
   cp "$COMPOSE_SRC" "${INSTALL_DIR}/docker-compose.yml"
+  if [[ -f "${REPO_ROOT}/deploy/docker-compose/docker-compose.build.yml" ]]; then
+    cp "${REPO_ROOT}/deploy/docker-compose/docker-compose.build.yml" "${INSTALL_DIR}/docker-compose.build.yml"
+  fi
   cp "$CADDY_SRC" "${INSTALL_DIR}/Caddyfile"
   cp "${REPO_ROOT}/deploy/scripts/healthcheck.sh" "${INSTALL_DIR}/scripts/healthcheck.sh"
   cp "${REPO_ROOT}/deploy/scripts/backup-db.sh" "${INSTALL_DIR}/scripts/backup-db.sh"
   chmod +x "${INSTALL_DIR}/scripts/"*.sh
 
-  # Ensure compose context ./src resolves under /opt/hmray
+  # Ensure compose context ./src resolves under /opt/hmray (fallback builds)
   if [[ "$(readlink -f "$SRC_DIR" 2>/dev/null || echo "$SRC_DIR")" != "$(readlink -f "${INSTALL_DIR}/src" 2>/dev/null || echo "${INSTALL_DIR}/src")" ]]; then
     rm -rf "${INSTALL_DIR}/src"
     ln -sfn "$SRC_DIR" "${INSTALL_DIR}/src"
   fi
 
-  log "Building images from source (this can take several minutes)..."
-  export DOCKER_BUILDKIT=1
-  export COMPOSE_DOCKER_CLI_BUILD=1
-  # Prefer host network during build when npm/GitHub are flaky inside bridge networking.
-  if ! compose build; then
-    log "Standard build failed — retrying with NPM China mirror fallback..."
-    NPM_REGISTRY=https://registry.npmmirror.com compose build
-  fi
+  pull_or_build_images
 
   log "Starting services..."
   compose up -d --remove-orphans

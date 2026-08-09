@@ -79,7 +79,10 @@ English menu:
 Installer asks only **4 questions**: Domain, Port, Admin username, Admin password.  
 Telegram Bot Token + Admin Chat ID → set later in **Admin Panel → Settings**.
 
-Images are **built from source** on the server (no GHCR required).
+Images are pulled from **GitHub Container Registry** (`ghcr.io/neoauroraproject/hmrayexpo/*:latest`).
+Every push to `main` publishes fresh images via GitHub Actions.
+
+If GHCR is unreachable, the installer falls back to a local source build.
 
 After first install:
 
