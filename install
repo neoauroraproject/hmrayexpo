@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# HMRAY one-line remote installer (private GitHub repo).
+# HMRAY Setup — one-line launcher with interactive menu (private GitHub).
 #
-# Usage (Ubuntu, as root):
+# Recommended (keeps keyboard interactive):
 #
 #   curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
+#     -o /tmp/hmray-setup \
 #     https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install \
-#     | sudo -E bash
+#     && sudo -E bash /tmp/hmray-setup
 #
-# Or with GitHub CLI already authenticated:
+# Compact:
 #
-#   gh api -H "Accept: application/vnd.github.raw" \
-#     repos/neoauroraproject/hmrayexpo/contents/install | sudo -E bash
+#   export GH_TOKEN=ghp_xxx
+#   curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -o /tmp/hmray-setup \
+#     https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install && sudo -E bash /tmp/hmray-setup
 #
-# Required: GH_TOKEN (repo read) or authenticated `gh` CLI.
-# Optional: HMRAY_REPO, HMRAY_REF, HMRAY_INSTALL_DIR, HMRAY_SRC_DIR
+# If GH_TOKEN is unset, the menu will ask for it (reads from /dev/tty).
 
 set -euo pipefail
 
@@ -21,56 +22,217 @@ REPO="${HMRAY_REPO:-neoauroraproject/hmrayexpo}"
 REF="${HMRAY_REF:-main}"
 INSTALL_DIR="${HMRAY_INSTALL_DIR:-/opt/hmray}"
 SRC_DIR="${HMRAY_SRC_DIR:-/opt/hmray/src}"
+RAW_BASE="https://raw.githubusercontent.com/${REPO}/${REF}"
+
+# Prefer the controlling terminal so prompts work even after curl|bash
+TTY="${HMRAY_TTY:-/dev/tty}"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
-if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-  die "Run as root (pipe into sudo -E bash)."
-fi
-
-export DEBIAN_FRONTEND=noninteractive
-
-if ! command -v git >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
-  apt-get update -qq
-  apt-get install -y -qq git curl ca-certificates
-fi
-
-resolve_clone() {
-  mkdir -p "$(dirname "$SRC_DIR")"
-  rm -rf "$SRC_DIR"
-
-  if [[ -n "${GH_TOKEN:-}" ]]; then
-    git clone --depth 1 --branch "$REF" \
-      "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
-      "$SRC_DIR"
-    # Drop token from remote URL after clone
-    git -C "$SRC_DIR" remote set-url origin "https://github.com/${REPO}.git"
-    return 0
+ask() {
+  local prompt="$1"
+  local default="${2:-}"
+  local value=""
+  if [[ -n "$default" ]]; then
+    read -r -p "${prompt} [${default}]: " value <"$TTY" || true
+    value="${value:-$default}"
+  else
+    read -r -p "${prompt}: " value <"$TTY" || true
   fi
-
-  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    gh repo clone "$REPO" "$SRC_DIR" -- --depth 1 --branch "$REF"
-    return 0
-  fi
-
-  die "Set GH_TOKEN (PAT with repo scope) or run \`gh auth login\` first."
+  printf '%s' "$value"
 }
 
-echo "=== HMRAY remote install ==="
-echo "Repo:    ${REPO}@${REF}"
-echo "Source:  ${SRC_DIR}"
-echo "Target:  ${INSTALL_DIR}"
-echo
+ask_secret() {
+  local prompt="$1"
+  local value=""
+  read -r -s -p "${prompt}: " value <"$TTY" || true
+  echo >"$TTY"
+  printf '%s' "$value"
+}
 
-resolve_clone
+require_root() {
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    die "با root اجرا کنید: sudo -E bash $0"
+  fi
+}
 
-INSTALLER="${SRC_DIR}/deploy/installer/install.sh"
-[[ -f "$INSTALLER" ]] || die "Installer not found at ${INSTALLER}"
-chmod +x "$INSTALLER" "${SRC_DIR}/deploy/installer/"*.sh "${SRC_DIR}/deploy/scripts/"*.sh 2>/dev/null || true
+banner() {
+  clear 2>/dev/null || true
+  cat <<'EOF'
+╔══════════════════════════════════════════════╗
+║           HMRAY Shopping Platform            ║
+║              Setup & Operations              ║
+╚══════════════════════════════════════════════╝
+EOF
+  echo
+  echo "  Repo:    ${REPO}@${REF}"
+  echo "  Install: ${INSTALL_DIR}"
+  if [[ -f "${INSTALL_DIR}/.env" ]]; then
+    echo "  Status:  installed (.env found)"
+  else
+    echo "  Status:  not installed yet"
+  fi
+  echo
+}
 
-# Default image prefix to this private package namespace
-export HMRAY_IMAGE_PREFIX="${HMRAY_IMAGE_PREFIX:-ghcr.io/${REPO}}"
-export HMRAY_INSTALL_DIR="$INSTALL_DIR"
+ensure_deps() {
+  export DEBIAN_FRONTEND=noninteractive
+  local need=()
+  command -v curl >/dev/null 2>&1 || need+=(curl)
+  command -v git >/dev/null 2>&1 || need+=(git)
+  command -v ca-certificates >/dev/null 2>&1 || true
+  if ((${#need[@]})); then
+    echo "→ Installing: ${need[*]} …"
+    apt-get update -qq
+    apt-get install -y -qq git curl ca-certificates
+  fi
+}
 
-# Run wizard from repo checkout so COMPOSE_SRC resolves correctly
-exec bash "$INSTALLER"
+ensure_token() {
+  if [[ -n "${GH_TOKEN:-}" ]]; then
+    return 0
+  fi
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "ریپو خصوصی است؛ برای دانلود به GitHub Token نیاز است."
+  echo "PAT با دسترسی repo (+ read:packages برای GHCR)"
+  echo
+  GH_TOKEN="$(ask_secret "GitHub Token (GH_TOKEN)")"
+  [[ -n "$GH_TOKEN" ]] || die "بدون Token ادامه ممکن نیست."
+  export GH_TOKEN
+}
+
+fetch_src() {
+  ensure_token
+  mkdir -p "$(dirname "$SRC_DIR")"
+
+  if [[ -d "${SRC_DIR}/.git" ]]; then
+    echo "→ Updating source at ${SRC_DIR} …"
+    if [[ -n "${GH_TOKEN:-}" ]]; then
+      git -C "$SRC_DIR" remote set-url origin \
+        "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+    fi
+    git -C "$SRC_DIR" fetch --depth 1 origin "$REF"
+    git -C "$SRC_DIR" checkout -B "$REF" "FETCH_HEAD"
+    git -C "$SRC_DIR" remote set-url origin "https://github.com/${REPO}.git" || true
+  else
+    echo "→ Cloning ${REPO}@${REF} …"
+    rm -rf "$SRC_DIR"
+    if [[ -n "${GH_TOKEN:-}" ]]; then
+      git clone --depth 1 --branch "$REF" \
+        "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
+        "$SRC_DIR"
+      git -C "$SRC_DIR" remote set-url origin "https://github.com/${REPO}.git"
+    else
+      gh repo clone "$REPO" "$SRC_DIR" -- --depth 1 --branch "$REF"
+    fi
+  fi
+
+  chmod +x "${SRC_DIR}/deploy/installer/"*.sh "${SRC_DIR}/deploy/scripts/"*.sh 2>/dev/null || true
+  chmod +x "${SRC_DIR}/install" 2>/dev/null || true
+}
+
+install_cli_wrapper() {
+  # Persist a local launcher so next time:  sudo hmray
+  mkdir -p "$INSTALL_DIR"
+  cat >"${INSTALL_DIR}/hmray" <<EOF
+#!/usr/bin/env bash
+export HMRAY_REPO="${REPO}"
+export HMRAY_REF="${REF}"
+export HMRAY_INSTALL_DIR="${INSTALL_DIR}"
+export HMRAY_SRC_DIR="${SRC_DIR}"
+exec bash "${SRC_DIR}/install" "\$@"
+EOF
+  chmod +x "${INSTALL_DIR}/hmray"
+  ln -sfn "${INSTALL_DIR}/hmray" /usr/local/bin/hmray
+  echo "→ CLI installed:  sudo hmray"
+}
+
+run_install() {
+  fetch_src
+  export HMRAY_IMAGE_PREFIX="${HMRAY_IMAGE_PREFIX:-ghcr.io/${REPO}}"
+  export HMRAY_INSTALL_DIR="$INSTALL_DIR"
+  bash "${SRC_DIR}/deploy/installer/install.sh"
+  install_cli_wrapper
+}
+
+run_update() {
+  [[ -f "${INSTALL_DIR}/.env" ]] || die "هنوز نصب نشده. اول گزینه Install را بزنید."
+  fetch_src
+  bash "${SRC_DIR}/deploy/installer/update.sh"
+  install_cli_wrapper
+}
+
+run_uninstall() {
+  [[ -d "$INSTALL_DIR" ]] || die "چیزی برای حذف در ${INSTALL_DIR} نیست."
+  if [[ -f "${SRC_DIR}/deploy/installer/uninstall.sh" ]]; then
+    bash "${SRC_DIR}/deploy/installer/uninstall.sh"
+  else
+    fetch_src
+    bash "${SRC_DIR}/deploy/installer/uninstall.sh"
+  fi
+}
+
+run_health() {
+  local hc="${INSTALL_DIR}/scripts/healthcheck.sh"
+  if [[ -x "$hc" ]]; then
+    bash "$hc"
+  elif [[ -f "${SRC_DIR}/deploy/scripts/healthcheck.sh" ]]; then
+    bash "${SRC_DIR}/deploy/scripts/healthcheck.sh"
+  else
+    die "healthcheck پیدا نشد. اول نصب کنید."
+  fi
+}
+
+run_backup() {
+  local bk="${INSTALL_DIR}/scripts/backup-db.sh"
+  [[ -x "$bk" ]] || die "backup script پیدا نشد. اول نصب کنید."
+  bash "$bk"
+}
+
+menu() {
+  while true; do
+    banner
+    cat <<'EOF'
+  1) نصب جدید / نصب مجدد   (Install)
+  2) آپدیت                  (Update)
+  3) وضعیت سلامت            (Health)
+  4) بکاپ دیتابیس           (Backup)
+  5) حذف نصب                (Uninstall)
+  0) خروج                   (Exit)
+EOF
+    echo
+    choice="$(ask "انتخاب کنید" "1")"
+    echo
+    case "$choice" in
+      1) run_install; break ;;
+      2) run_update; break ;;
+      3) run_health; ask "Enter بزنید…" "" >/dev/null ;;
+      4) run_backup; ask "Enter بزنید…" "" >/dev/null ;;
+      5) run_uninstall; break ;;
+      0|q|Q) echo "خداحافظ."; exit 0 ;;
+      *) echo "گزینه نامعتبر."; sleep 1 ;;
+    esac
+  done
+}
+
+main() {
+  require_root
+  [[ -r "$TTY" ]] || die "ترمینال تعاملی در دسترس نیست. با دستور پیشنهادی در README اجرا کنید (نه pipe ساده بدون /dev/tty)."
+  ensure_deps
+
+  # Optional non-interactive shortcuts: sudo bash install install|update|...
+  case "${1:-}" in
+    install|i) run_install; exit 0 ;;
+    update|u) run_update; exit 0 ;;
+    health|h) run_health; exit 0 ;;
+    backup|b) run_backup; exit 0 ;;
+    uninstall|remove) run_uninstall; exit 0 ;;
+    menu|"") menu; exit 0 ;;
+    *) die "Unknown command: $1 (use: install|update|health|backup|uninstall|menu)" ;;
+  esac
+}
+
+main "$@"

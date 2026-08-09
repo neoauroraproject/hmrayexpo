@@ -10,6 +10,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_SRC="${REPO_ROOT}/deploy/docker-compose/docker-compose.yml"
 CADDY_SRC="${REPO_ROOT}/deploy/caddy/Caddyfile"
 LOG_FILE="${INSTALL_DIR}/install.log"
+TTY="${HMRAY_TTY:-/dev/tty}"
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -33,13 +34,15 @@ prompt() {
   local question="$2"
   local default="${3:-}"
   local value=""
+  local input="$TTY"
+  [[ -r "$input" ]] || input="/dev/stdin"
   if [[ -n "$default" ]]; then
-    read -r -p "${question} [${default}]: " value
+    read -r -p "${question} [${default}]: " value <"$input"
     value="${value:-$default}"
   else
-    read -r -p "${question}: " value
+    read -r -p "${question}: " value <"$input"
     while [[ -z "$value" ]]; do
-      read -r -p "${question} (required): " value
+      read -r -p "${question} (required): " value <"$input"
     done
   fi
   printf -v "$var_name" '%s' "$value"
@@ -49,10 +52,12 @@ prompt_secret() {
   local var_name="$1"
   local question="$2"
   local value=""
-  read -r -s -p "${question}: " value
+  local input="$TTY"
+  [[ -r "$input" ]] || input="/dev/stdin"
+  read -r -s -p "${question}: " value <"$input"
   echo
   while [[ -z "$value" ]]; do
-    read -r -s -p "${question} (required): " value
+    read -r -s -p "${question} (required): " value <"$input"
     echo
   done
   printf -v "$var_name" '%s' "$value"
@@ -62,7 +67,9 @@ prompt_optional_secret() {
   local var_name="$1"
   local question="$2"
   local value=""
-  read -r -s -p "${question} (Enter to skip): " value
+  local input="$TTY"
+  [[ -r "$input" ]] || input="/dev/stdin"
+  read -r -s -p "${question} (Enter to skip): " value <"$input"
   echo
   printf -v "$var_name" '%s' "$value"
 }
@@ -221,7 +228,7 @@ main() {
   # Idempotent: reuse or overwrite existing .env
   REUSE_ENV=false
   if [[ -f "${INSTALL_DIR}/.env" ]]; then
-    read -r -p ".env already exists at ${INSTALL_DIR}/.env. Reuse it? [Y/n]: " reuse_answer
+    read -r -p ".env already exists at ${INSTALL_DIR}/.env. Reuse it? [Y/n]: " reuse_answer <"${TTY}"
     reuse_answer="${reuse_answer:-Y}"
     if [[ "$reuse_answer" =~ ^[Yy]$ ]]; then
       REUSE_ENV=true

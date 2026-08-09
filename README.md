@@ -58,25 +58,36 @@ docker compose exec api node --import tsx /app/packages/database/prisma/seed.ts
 
 ---
 
-## Production install (Ubuntu) — one line
+## Production install (Ubuntu) — one line + menu
 
-Private repo. Create a GitHub PAT with `repo` (+ `read:packages` for GHCR pull), then:
+ریپو خصوصی است. یک PAT با `repo` (+ `read:packages` برای GHCR) بساز، بعد:
 
 ```bash
 export GH_TOKEN=ghp_xxxxxxxx
-curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
+curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+  -o /tmp/hmray-setup \
   https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install \
-  | sudo -E bash
+  && sudo -E bash /tmp/hmray-setup
 ```
 
-With GitHub CLI already logged in on the server:
+منوی تعاملی باز می‌شود:
+
+```text
+1) نصب جدید / نصب مجدد
+2) آپدیت
+3) وضعیت سلامت
+4) بکاپ دیتابیس
+5) حذف نصب
+0) خروج
+```
+
+اگر `GH_TOKEN` از قبل export نشده باشد، خود منو Token را می‌پرسد.
+
+بعد از نصب اول، دوباره:
 
 ```bash
-gh api -H "Accept: application/vnd.github.raw" \
-  repos/neoauroraproject/hmrayexpo/contents/install | sudo -E bash
+sudo hmray
 ```
-
-Bootstrap clones the repo to `/opt/hmray/src` and starts the interactive wizard.
 
 ### Requirements
 
@@ -128,21 +139,17 @@ https://<DOMAIN>:<PANEL_PORT>
 
 If `.env` already exists, the installer asks whether to **reuse** or regenerate it (idempotent re-runs).
 
-### 4. Operations
+### Operations
 
 ```bash
-# Health check
-sudo /opt/hmray/scripts/healthcheck.sh
-
-# Database backup
-sudo /opt/hmray/scripts/backup-db.sh
-
-# Upgrade to a new image tag
-sudo bash deploy/installer/update.sh
-
-# Selective uninstall (optional backup)
-sudo bash deploy/installer/uninstall.sh
+sudo hmray              # منوی اصلی
+sudo hmray update       # آپدیت مستقیم
+sudo hmray health       # سلامت
+sudo hmray backup       # بکاپ
+sudo hmray uninstall    # حذف
 ```
+
+Or via scripts under `/opt/hmray/scripts/`.
 
 See also [docs/mvp-acceptance.md](docs/mvp-acceptance.md) and [docs/phases.md](docs/phases.md).
 
