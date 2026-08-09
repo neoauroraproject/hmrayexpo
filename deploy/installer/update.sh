@@ -70,8 +70,8 @@ main() {
   docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
 
   echo "Running migrations..."
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T api sh -c \
-    'npx prisma migrate deploy --schema=/app/packages/database/prisma/schema.prisma'
+  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T api hmray-db migrate \
+    || docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T -w /app api sh /usr/local/bin/hmray-db migrate
 
   echo "Health check..."
   bash "${INSTALL_DIR}/scripts/healthcheck.sh"

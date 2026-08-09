@@ -28,6 +28,8 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app ./
+COPY docker/api-db.sh /usr/local/bin/hmray-db
+RUN chmod +x /usr/local/bin/hmray-db
 WORKDIR /app/apps/api
 EXPOSE 4000
 CMD ["node", "dist/main.js"]

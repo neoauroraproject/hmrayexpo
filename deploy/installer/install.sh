@@ -190,14 +190,54 @@ pull_or_build_images() {
 
 run_migrations() {
   log "Running database migrations..."
-  compose exec -T api sh -c \
-    'npx prisma migrate deploy --schema=/app/packages/database/prisma/schema.prisma'
+  compose exec -T api hmray-db migrate \
+    || compose exec -T -w /app api sh /usr/local/bin/hmray-db migrate \
+    || compose exec -T -w /app api sh -c '
+         BIN=$(find /app -path "*/node_modules/prisma/build/index.js" | head -n1)
+         test -n "$BIN"
+         node "$BIN" migrate deploy --schema=/app/packages/database/prisma/schema.prisma
+       '
 }
 
 run_seed() {
   log "Seeding database..."
-  compose exec -T api sh -c \
-    'node --import tsx /app/packages/database/prisma/seed.ts'
+  compose exec -T api hmray-db seed \
+    || compose exec -T -w /app api sh /usr/local/bin/hmray-db seed \
+    || compose exec -T -w /app api sh -c '
+         if [ -x /app/node_modules/.bin/tsx ]; then
+           /app/node_modules/.bin/tsx /app/packages/database/prisma/seed.ts
+         else
+           node --import tsx /app/packages/database/prisma/seed.ts
+         fi
+       '
+}
+
+finish_ok() {
+  local panel_url="https://${DOMAIN}:${PANEL_PORT}"
+  local user_name="${ADMIN_USERNAME:-owner}"
+  echo
+  echo "============================================"
+  echo " INSTALL SUCCESS"
+  echo "============================================"
+  echo " Admin panel: ${panel_url}"
+  echo " Username:    ${user_name}"
+  echo
+  echo " Next steps:"
+  echo "  1) Open the admin panel and log in"
+  echo "  2) Settings → Telegram → set Bot Token + Chat ID"
+  echo "============================================"
+  log "Install completed successfully."
+}
+
+finish_fail() {
+  echo
+  echo "============================================"
+  echo " INSTALL INCOMPLETE"
+  echo "============================================"
+  echo " Containers may be running, but a late step failed."
+  echo " Check logs:"
+  echo "   cd /opt/hmray && docker compose --env-file .env logs --tail=100 api"
+  echo "============================================"
 }
 
 wait_for_api() {
@@ -295,26 +335,25 @@ main() {
 
   wait_for_api
 
+  if ! run_migrations; then
+    finish_fail
+    die "Database migration failed."
+  fi
+
   if [[ "$REUSE_ENV" == false ]]; then
-    run_migrations
-    run_seed
-  else
-    run_migrations || log "Migration failed — inspect logs."
+    if ! run_seed; then
+      finish_fail
+      die "Database seed failed."
+    fi
   fi
 
   run_healthchecks || log "Healthcheck reported issues (bot may wait until Telegram is configured)."
 
-  panel_url="https://${DOMAIN}:${PANEL_PORT}"
-  echo
-  echo "============================================"
-  echo " HMRAY is ready"
-  echo " Admin panel: ${panel_url}"
-  echo " Login:       ${ADMIN_USERNAME:-<from .env>}"
-  echo
-  echo " Next: open Settings → Telegram and set"
-  echo " Bot Token + Admin Chat ID, then save."
-  echo "============================================"
-  log "Install completed successfully."
+  # Prefer values from current shell / .env
+  DOMAIN="${DOMAIN:-$(load_env_value DOMAIN || true)}"
+  PANEL_PORT="${PANEL_PORT:-$(load_env_value PANEL_PORT || echo 8443)}"
+  ADMIN_USERNAME="${ADMIN_USERNAME:-$(load_env_value ADMIN_USERNAME || echo owner)}"
+  finish_ok
 }
 
 main "$@"
