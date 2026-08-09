@@ -9,17 +9,25 @@ export function getApiUrl(): string {
   return "http://localhost:4000/api";
 }
 
-export function getAuthToken(): string | null {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("admin_token");
-  }
-  return null;
-}
-
 export function setAuthToken(token: string) {
   if (typeof window !== "undefined") {
+    if (!token || token === "undefined" || token === "null") {
+      localStorage.removeItem("admin_token");
+      return;
+    }
     localStorage.setItem("admin_token", token);
   }
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("admin_token");
+    if (!token || token === "undefined" || token === "null") {
+      return null;
+    }
+    return token;
+  }
+  return null;
 }
 
 export function removeAuthToken() {

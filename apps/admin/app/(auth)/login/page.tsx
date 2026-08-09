@@ -20,11 +20,17 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await apiFetch<{ token: string }>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ username, password }),
-      });
-      setAuthToken(res.token);
+      const res = await apiFetch<{ accessToken: string; expiresIn: string }>(
+        "/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({ username, password }),
+        },
+      );
+      if (!res.accessToken) {
+        throw new Error("پاسخ ورود نامعتبر است (توکن دریافت نشد).");
+      }
+      setAuthToken(res.accessToken);
       router.replace("/");
       router.refresh();
     } catch (err: any) {
