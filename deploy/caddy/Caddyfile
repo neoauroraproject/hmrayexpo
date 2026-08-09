@@ -23,6 +23,6 @@
 	}
 
 	handle {
-		reverse_proxy admin:3000
+		reverse_proxy http://admin:3000
 	}
 }

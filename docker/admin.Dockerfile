@@ -29,7 +29,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_API_URL=/api
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 COPY --from=builder /app ./
 WORKDIR /app/apps/admin
 EXPOSE 3000
-CMD ["../../node_modules/.bin/next", "start", "-p", "3000"]
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
+  CMD wget -qO- http://127.0.0.1:3000/ >/dev/null 2>&1 || exit 1
+CMD ["sh", "-c", "exec ../../node_modules/.bin/next start -H 0.0.0.0 -p 3000"]
