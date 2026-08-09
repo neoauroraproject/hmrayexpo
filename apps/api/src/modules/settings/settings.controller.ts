@@ -23,8 +23,8 @@ import { AuditService } from "../audit/audit.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { JOB } from "../notifications/notifications.constants";
 import { SettingsService } from "./settings.service";
-import { EDITABLE_SETTING_KEYS } from "./settings.constants";
-import { SetExchangeRateDto, TestNotificationDto, UpdateSettingsDto } from "./dto/settings.dto";
+import { SetExchangeRateDto, TestNotificationDto, UpdateSettingsDto, UpdateTelegramSettingsDto } from "./dto/settings.dto";
+import { EDITABLE_SETTING_KEYS, SETTING_KEYS, TELEGRAM_BOT_TOKEN_KEY } from "./settings.constants";
 
 @Controller("admin/settings")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -40,7 +40,7 @@ export class SettingsController {
 
   @Get()
   async read() {
-    const [values, rateHistory, rates] = await Promise.all([
+    const [values, rateHistory, rates, storedToken] = await Promise.all([
       this.settings.listEditable(),
       this.prisma.exchangeRate.findMany({
         orderBy: { createdAt: "desc" },
@@ -48,6 +48,7 @@ export class SettingsController {
         include: { setByAdmin: { select: { id: true, displayName: true } } },
       }),
       this.settings.rateMap(),
+      this.settings.getRaw(TELEGRAM_BOT_TOKEN_KEY),
     ]);
 
     const liveRates: Record<string, string> = {};
@@ -55,6 +56,7 @@ export class SettingsController {
       liveRates[currency] = rate.toString();
     }
 
+    const tokenFromDb = typeof storedToken === "string" && storedToken.length > 0;
     return {
       values,
       editableKeys: EDITABLE_SETTING_KEYS,
@@ -62,7 +64,50 @@ export class SettingsController {
       rateHistory,
       // The bot token is never echoed back — only whether one is configured.
       telegram: {
-        configured: this.config.telegramBotConfigured,
+        configured: tokenFromDb || this.config.telegramBotConfigured,
+        adminChatId:
+          (typeof values.adminTelegramChatId === "string"
+            ? values.adminTelegramChatId
+            : null) ?? this.config.adminTelegramChatId ?? null,
+      },
+    };
+  }
+
+  @Patch("telegram")
+  async updateTelegram(
+    @Body() dto: UpdateTelegramSettingsDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @RequestContext() context: ClientContext,
+  ) {
+    if (!dto.botToken && dto.adminChatId === undefined) {
+      throw new BadRequestException("Provide botToken and/or adminChatId");
+    }
+
+    if (dto.botToken !== undefined && dto.botToken.trim().length > 0) {
+      await this.settings.set(TELEGRAM_BOT_TOKEN_KEY, dto.botToken.trim());
+    }
+    if (dto.adminChatId !== undefined) {
+      await this.settings.set(SETTING_KEYS.ADMIN_TELEGRAM_CHAT_ID, dto.adminChatId.trim());
+    }
+
+    await this.audit.log({
+      actorAdminId: admin.id,
+      action: "settings.telegram.update",
+      entityType: "Setting",
+      newValue: {
+        botTokenUpdated: Boolean(dto.botToken?.trim()),
+        adminChatId: dto.adminChatId ?? null,
+      },
+      context,
+    });
+
+    const storedToken = await this.settings.getRaw(TELEGRAM_BOT_TOKEN_KEY);
+    const values = await this.settings.listEditable();
+    return {
+      telegram: {
+        configured:
+          (typeof storedToken === "string" && storedToken.length > 0) ||
+          this.config.telegramBotConfigured,
         adminChatId:
           (typeof values.adminTelegramChatId === "string"
             ? values.adminTelegramChatId

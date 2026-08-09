@@ -12,8 +12,14 @@ export const EnvSchema = z.object({
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN: z.string().default("7d"),
 
-  TELEGRAM_BOT_TOKEN: z.string().min(1),
-  ADMIN_TELEGRAM_CHAT_ID: z.string().optional(),
+  TELEGRAM_BOT_TOKEN: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  ADMIN_TELEGRAM_CHAT_ID: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : v),
+    z.string().optional(),
+  ),
 
   PORT: z.coerce.number().int().positive().default(4000),
   PANEL_PORT: z.coerce.number().int().positive().default(3000),

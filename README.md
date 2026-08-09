@@ -65,18 +65,23 @@ curl -fsSL https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/ins
   -o /tmp/hmray-setup && sudo bash /tmp/hmray-setup
 ```
 
-منوی تعاملی:
+English menu:
 
 ```text
-1) نصب جدید / نصب مجدد
-2) آپدیت
-3) وضعیت سلامت
-4) بکاپ دیتابیس
-5) حذف نصب
-0) خروج
+1) Install / Reinstall
+2) Update
+3) Health check
+4) Backup database
+5) Uninstall
+0) Exit
 ```
 
-بعد از نصب اول:
+Installer asks only **4 questions**: Domain, Port, Admin username, Admin password.  
+Telegram Bot Token + Admin Chat ID → set later in **Admin Panel → Settings**.
+
+Images are **built from source** on the server (no GHCR required).
+
+After first install:
 
 ```bash
 sudo hmray
@@ -87,7 +92,6 @@ sudo hmray
 - Ubuntu 22.04+ with root/sudo
 - DNS A/AAAA pointing your domain to the server
 - Open panel port (default **8443**)
-- اگر Imageهای GHCR خصوصی باشند، موقع نصب Token اختیاری برای `docker login` می‌پرسد
 
 ### Publish images (maintainers)
 

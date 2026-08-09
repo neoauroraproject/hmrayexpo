@@ -39,3 +39,15 @@ export class TestNotificationDto {
   @MaxLength(300)
   message?: string;
 }
+
+export class UpdateTelegramSettingsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  botToken?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  adminChatId?: string;
+}

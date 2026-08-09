@@ -1,5 +1,5 @@
-# HMRAY production stack — deployed to /opt/hmray by install.sh
-# Images are pulled from GHCR; configure via .env (HMRAY_IMAGE_PREFIX, HMRAY_IMAGE_TAG).
+# HMRAY production compose — builds images from local source at ./src
+# (populated by the installer into /opt/hmray/src).
 
 services:
   postgres:
@@ -37,7 +37,10 @@ services:
       retries: 10
 
   api:
-    image: ${HMRAY_IMAGE_PREFIX:?HMRAY_IMAGE_PREFIX is required}/api:${HMRAY_IMAGE_TAG:-latest}
+    build:
+      context: ./src
+      dockerfile: docker/api.Dockerfile
+    image: hmray-api:local
     restart: unless-stopped
     env_file: .env
     environment:
@@ -64,15 +67,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
-      start_period: 30s
+      start_period: 40s
 
   bot:
-    image: ${HMRAY_IMAGE_PREFIX}/bot:${HMRAY_IMAGE_TAG:-latest}
+    build:
+      context: ./src
+      dockerfile: docker/bot.Dockerfile
+    image: hmray-bot:local
     restart: unless-stopped
     env_file: .env
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
+      API_BASE_URL: http://api:4000/api
+      PUBLIC_URL: ${PUBLIC_URL}
       TZ: ${TZ:-Asia/Tehran}
     depends_on:
       api:
@@ -81,7 +89,10 @@ services:
         condition: service_healthy
 
   worker:
-    image: ${HMRAY_IMAGE_PREFIX}/worker:${HMRAY_IMAGE_TAG:-latest}
+    build:
+      context: ./src
+      dockerfile: docker/worker.Dockerfile
+    image: hmray-worker:local
     restart: unless-stopped
     env_file: .env
     environment:
@@ -98,12 +109,16 @@ services:
         condition: service_healthy
 
   admin:
-    image: ${HMRAY_IMAGE_PREFIX}/admin:${HMRAY_IMAGE_TAG:-latest}
+    build:
+      context: ./src
+      dockerfile: docker/admin.Dockerfile
+    image: hmray-admin:local
     restart: unless-stopped
     env_file: .env
     environment:
       NODE_ENV: production
       PANEL_PORT: 3000
+      NEXT_PUBLIC_API_URL: ${PUBLIC_URL}/api
       TZ: ${TZ:-Asia/Tehran}
 
   caddy:

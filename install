@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
-# HMRAY Setup — one-line launcher with interactive menu (public GitHub).
-#
-# One-liner (Ubuntu):
+# HMRAY Setup — one-line launcher with English interactive menu.
 #
 #   curl -fsSL https://raw.githubusercontent.com/neoauroraproject/hmrayexpo/main/install \
 #     -o /tmp/hmray-setup && sudo bash /tmp/hmray-setup
-#
-# Even shorter after first install:
-#
-#   sudo hmray
 
 set -euo pipefail
 
@@ -16,8 +10,6 @@ REPO="${HMRAY_REPO:-neoauroraproject/hmrayexpo}"
 REF="${HMRAY_REF:-main}"
 INSTALL_DIR="${HMRAY_INSTALL_DIR:-/opt/hmray}"
 SRC_DIR="${HMRAY_SRC_DIR:-/opt/hmray/src}"
-
-# Prefer the controlling terminal so prompts work even after curl|bash
 TTY="${HMRAY_TTY:-/dev/tty}"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -37,25 +29,24 @@ ask() {
 
 require_root() {
   if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-    die "با root اجرا کنید: sudo bash $0"
+    die "Run as root: sudo bash $0"
   fi
 }
 
 banner() {
   clear 2>/dev/null || true
   cat <<'EOF'
-╔══════════════════════════════════════════════╗
-║           HMRAY Shopping Platform            ║
-║              Setup & Operations              ║
-╚══════════════════════════════════════════════╝
+============================================
+   HMRAY Shopping Platform — Setup Menu
+============================================
 EOF
   echo
   echo "  Repo:    ${REPO}@${REF}"
   echo "  Install: ${INSTALL_DIR}"
   if [[ -f "${INSTALL_DIR}/.env" ]]; then
-    echo "  Status:  installed (.env found)"
+    echo "  Status:  installed"
   else
-    echo "  Status:  not installed yet"
+    echo "  Status:  not installed"
   fi
   echo
 }
@@ -66,7 +57,7 @@ ensure_deps() {
   command -v curl >/dev/null 2>&1 || need+=(curl)
   command -v git >/dev/null 2>&1 || need+=(git)
   if ((${#need[@]})); then
-    echo "→ Installing: ${need[*]} …"
+    echo "-> Installing: ${need[*]} ..."
     apt-get update -qq
     apt-get install -y -qq git curl ca-certificates
   fi
@@ -77,12 +68,12 @@ fetch_src() {
   local origin="https://github.com/${REPO}.git"
 
   if [[ -d "${SRC_DIR}/.git" ]]; then
-    echo "→ Updating source at ${SRC_DIR} …"
+    echo "-> Updating source at ${SRC_DIR} ..."
     git -C "$SRC_DIR" remote set-url origin "$origin"
     git -C "$SRC_DIR" fetch --depth 1 origin "$REF"
     git -C "$SRC_DIR" checkout -B "$REF" "FETCH_HEAD"
   else
-    echo "→ Cloning ${REPO}@${REF} …"
+    echo "-> Cloning ${REPO}@${REF} ..."
     rm -rf "$SRC_DIR"
     git clone --depth 1 --branch "$REF" "$origin" "$SRC_DIR"
   fi
@@ -103,26 +94,26 @@ exec bash "${SRC_DIR}/install" "\$@"
 EOF
   chmod +x "${INSTALL_DIR}/hmray"
   ln -sfn "${INSTALL_DIR}/hmray" /usr/local/bin/hmray
-  echo "→ CLI installed:  sudo hmray"
+  echo "-> CLI ready:  sudo hmray"
 }
 
 run_install() {
   fetch_src
-  export HMRAY_IMAGE_PREFIX="${HMRAY_IMAGE_PREFIX:-ghcr.io/${REPO}}"
   export HMRAY_INSTALL_DIR="$INSTALL_DIR"
+  export HMRAY_SRC_DIR="$SRC_DIR"
   bash "${SRC_DIR}/deploy/installer/install.sh"
   install_cli_wrapper
 }
 
 run_update() {
-  [[ -f "${INSTALL_DIR}/.env" ]] || die "هنوز نصب نشده. اول گزینه Install را بزنید."
+  [[ -f "${INSTALL_DIR}/.env" ]] || die "Not installed yet. Choose Install first."
   fetch_src
   bash "${SRC_DIR}/deploy/installer/update.sh"
   install_cli_wrapper
 }
 
 run_uninstall() {
-  [[ -d "$INSTALL_DIR" ]] || die "چیزی برای حذف در ${INSTALL_DIR} نیست."
+  [[ -d "$INSTALL_DIR" ]] || die "Nothing to uninstall at ${INSTALL_DIR}"
   if [[ -f "${SRC_DIR}/deploy/installer/uninstall.sh" ]]; then
     bash "${SRC_DIR}/deploy/installer/uninstall.sh"
   else
@@ -138,13 +129,13 @@ run_health() {
   elif [[ -f "${SRC_DIR}/deploy/scripts/healthcheck.sh" ]]; then
     bash "${SRC_DIR}/deploy/scripts/healthcheck.sh"
   else
-    die "healthcheck پیدا نشد. اول نصب کنید."
+    die "Healthcheck not found. Install first."
   fi
 }
 
 run_backup() {
   local bk="${INSTALL_DIR}/scripts/backup-db.sh"
-  [[ -x "$bk" ]] || die "backup script پیدا نشد. اول نصب کنید."
+  [[ -x "$bk" ]] || die "Backup script not found. Install first."
   bash "$bk"
 }
 
@@ -152,31 +143,31 @@ menu() {
   while true; do
     banner
     cat <<'EOF'
-  1) نصب جدید / نصب مجدد   (Install)
-  2) آپدیت                  (Update)
-  3) وضعیت سلامت            (Health)
-  4) بکاپ دیتابیس           (Backup)
-  5) حذف نصب                (Uninstall)
-  0) خروج                   (Exit)
+  1) Install / Reinstall
+  2) Update
+  3) Health check
+  4) Backup database
+  5) Uninstall
+  0) Exit
 EOF
     echo
-    choice="$(ask "انتخاب کنید" "1")"
+    choice="$(ask "Select option" "1")"
     echo
     case "$choice" in
       1) run_install; break ;;
       2) run_update; break ;;
-      3) run_health; ask "Enter بزنید…" "" >/dev/null ;;
-      4) run_backup; ask "Enter بزنید…" "" >/dev/null ;;
+      3) run_health; ask "Press Enter to continue" "" >/dev/null ;;
+      4) run_backup; ask "Press Enter to continue" "" >/dev/null ;;
       5) run_uninstall; break ;;
-      0|q|Q) echo "خداحافظ."; exit 0 ;;
-      *) echo "گزینه نامعتبر."; sleep 1 ;;
+      0|q|Q) echo "Bye."; exit 0 ;;
+      *) echo "Invalid option."; sleep 1 ;;
     esac
   done
 }
 
 main() {
   require_root
-  [[ -r "$TTY" ]] || die "ترمینال تعاملی در دسترس نیست. از دستور README استفاده کنید."
+  [[ -r "$TTY" ]] || die "No interactive TTY. Use the README one-liner."
   ensure_deps
 
   case "${1:-}" in
@@ -186,7 +177,7 @@ main() {
     backup|b) run_backup; exit 0 ;;
     uninstall|remove) run_uninstall; exit 0 ;;
     menu|"") menu; exit 0 ;;
-    *) die "Unknown command: $1 (use: install|update|health|backup|uninstall|menu)" ;;
+    *) die "Unknown command: $1" ;;
   esac
 }
 

@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { Bot, webhookCallback } from "grammy";
 import { ApiClient } from "./api-client.js";
-import { loadBotEnv } from "./env.js";
+import { loadBotEnvBase, resolveBotEnv } from "./env.js";
 import { registerAddressesHandlers } from "./handlers/addresses.js";
 import { registerCancelHandler } from "./handlers/cancel.js";
 import { registerFallbackHandlers } from "./handlers/fallback.js";
@@ -16,7 +16,8 @@ import { createSessionMiddleware } from "./session.js";
 import type { BotContext } from "./types.js";
 
 async function main(): Promise<void> {
-  const env = loadBotEnv();
+  loadBotEnvBase();
+  const env = await resolveBotEnv();
   const api = new ApiClient(env.apiBaseUrl, env.botInternalSecret);
 
   const bot = new Bot<BotContext>(env.telegramBotToken);

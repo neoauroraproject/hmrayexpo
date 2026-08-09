@@ -19,19 +19,11 @@ function raw(key: string): string | undefined {
   return value && value.length > 0 ? value : undefined;
 }
 
-/**
- * Bot-specific environment loader. Reuses `@hmray/config` for the variables
- * shared with the rest of the monorepo (documented in the root
- * `.env.example`) and reads the handful of bot-only knobs directly, the same
- * way `AppConfigService` does on the API side.
- */
-export function loadBotEnv(): BotEnv {
+export function loadBotEnvBase(): Omit<BotEnv, "telegramBotToken" | "adminTelegramChatId"> & {
+  telegramBotToken?: string;
+  adminTelegramChatId?: string;
+} {
   const shared = tryLoadEnv();
-
-  const telegramBotToken = shared?.TELEGRAM_BOT_TOKEN ?? raw("TELEGRAM_BOT_TOKEN");
-  if (!telegramBotToken) {
-    throw new Error("TELEGRAM_BOT_TOKEN is required to start the bot.");
-  }
 
   const botInternalSecret = raw("BOT_INTERNAL_SECRET");
   if (!botInternalSecret) {
@@ -40,8 +32,6 @@ export function loadBotEnv(): BotEnv {
     );
   }
 
-  // `PUBLIC_URL` is documented in .env.example as "Base URL for API (used in
-  // webhooks, links)" — the bot reuses it instead of inventing a new variable.
   const publicUrl = (shared?.PUBLIC_URL ?? raw("PUBLIC_URL") ?? "http://localhost:4000").replace(
     /\/$/,
     "",
@@ -50,15 +40,16 @@ export function loadBotEnv(): BotEnv {
 
   const webhookUrl = raw("WEBHOOK_URL");
   const requestedMode = raw("BOT_MODE")?.toLowerCase();
-  const botMode: BotEnv["botMode"] = webhookUrl
-    ? "webhook"
-    : requestedMode === "webhook"
+  const botMode: BotEnv["botMode"] =
+    webhookUrl && requestedMode !== "polling"
       ? "webhook"
-      : "polling";
+      : requestedMode === "webhook" && webhookUrl
+        ? "webhook"
+        : "polling";
 
   return {
     nodeEnv: shared?.NODE_ENV ?? raw("NODE_ENV") ?? "development",
-    telegramBotToken,
+    telegramBotToken: shared?.TELEGRAM_BOT_TOKEN || raw("TELEGRAM_BOT_TOKEN"),
     adminTelegramChatId: shared?.ADMIN_TELEGRAM_CHAT_ID ?? raw("ADMIN_TELEGRAM_CHAT_ID"),
     redisUrl: shared?.REDIS_URL ?? raw("REDIS_URL"),
     apiBaseUrl,
@@ -68,4 +59,49 @@ export function loadBotEnv(): BotEnv {
     webhookPort: Number(raw("BOT_WEBHOOK_PORT") ?? 8088),
     webhookSecretToken: raw("BOT_WEBHOOK_SECRET"),
   };
+}
+
+export async function resolveBotEnv(): Promise<BotEnv> {
+  const base = loadBotEnvBase();
+
+  if (base.telegramBotToken) {
+    return base as BotEnv;
+  }
+
+  // Wait until Admin Panel → Settings provides a token.
+  const pollMs = 10_000;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    console.log(
+      "[hmray-bot] Waiting for Telegram bot token (set it in Admin Panel → Settings)...",
+    );
+    try {
+      const res = await fetch(`${base.apiBaseUrl}/bot/runtime-config`, {
+        headers: { "X-Bot-Secret": base.botInternalSecret },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          telegramBotToken?: string | null;
+          adminTelegramChatId?: string | null;
+          botMode?: string;
+          webhookUrl?: string | null;
+        };
+        if (data.telegramBotToken) {
+          return {
+            ...base,
+            telegramBotToken: data.telegramBotToken,
+            adminTelegramChatId: data.adminTelegramChatId ?? base.adminTelegramChatId,
+            botMode:
+              data.botMode === "webhook" && data.webhookUrl
+                ? "webhook"
+                : "polling",
+            webhookUrl: data.webhookUrl ?? base.webhookUrl,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn("[hmray-bot] runtime-config poll failed:", err);
+    }
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
 }

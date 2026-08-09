@@ -1,5 +1,5 @@
-import { env } from "./queues.js";
 import { createLogger } from "./logger.js";
+import { resolveTelegramBotToken } from "./settings.js";
 
 const logger = createLogger("telegram");
 
@@ -20,12 +20,13 @@ export async function sendTelegramMessage(
   text: string,
   options?: { disableWebPagePreview?: boolean },
 ): Promise<number | null> {
-  if (!env.TELEGRAM_BOT_TOKEN) {
-    logger.warn("TELEGRAM_BOT_TOKEN not configured — skipping send", { chatId: String(chatId) });
+  const token = await resolveTelegramBotToken();
+  if (!token) {
+    logger.warn("Telegram bot token not configured — skipping send", { chatId: String(chatId) });
     return null;
   }
 
-  const url = `${API_BASE}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const url = `${API_BASE}/bot${token}/sendMessage`;
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -36,13 +36,9 @@ export default function SettingsPage() {
         setPaymentMethods(pmData);
       } catch (error) {
         console.error("Failed to fetch settings:", error);
-        // Mock data
-        setSettings({
-          telegram: { configured: true, adminChatId: "123456789" },
-          notifications: { newRequest: true, newPayment: true }
-        });
-        setChannels([{ id: "1", title: "کانال اصلی", url: "https://t.me/hmray", isRequired: true }]);
-        setPaymentMethods([{ id: "1", title: "کارت به کارت", details: "شماره کارت: ۱۲۳۴", isActive: true }]);
+        setSettings(null);
+        setChannels([]);
+        setPaymentMethods([]);
       } finally {
         setLoading(false);
       }
@@ -68,15 +64,16 @@ export default function SettingsPage() {
   const handleUpdateTelegram = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload: any = { adminChatId };
-      if (botToken) payload.botToken = botToken;
-      
-      await apiFetch("/admin/settings", {
+      const payload: Record<string, string> = { adminChatId };
+      if (botToken.trim()) payload.botToken = botToken.trim();
+
+      const data = await apiFetch<any>("/admin/settings/telegram", {
         method: "PATCH",
-        body: JSON.stringify({ telegram: payload }),
+        body: JSON.stringify(payload),
       });
-      alert("تنظیمات تلگرام بروزرسانی شد.");
-      setBotToken(""); // Clear token input
+      setSettings((prev: any) => ({ ...prev, telegram: data.telegram }));
+      alert("تنظیمات تلگرام ذخیره شد. ربات ظرف چند ثانیه وصل می‌شود.");
+      setBotToken("");
     } catch (error) {
       console.error("Failed to update telegram settings:", error);
       alert("خطا در بروزرسانی تنظیمات تلگرام");

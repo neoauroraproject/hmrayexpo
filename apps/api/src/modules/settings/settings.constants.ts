@@ -1,5 +1,11 @@
 import { InspectionType } from "@hmray/database";
 
+/**
+ * Internal keys are machine-written state (never editable through the settings
+ * endpoint) and are hidden from `GET /api/admin/settings`.
+ */
+export const INTERNAL_KEY_PREFIX = "internal:";
+
 export const SETTING_KEYS = {
   QUOTE_VALIDITY_DAYS: "quoteValidityDays",
   DEFAULT_INSPECTION_TYPE: "defaultInspectionType",
@@ -9,13 +15,10 @@ export const SETTING_KEYS = {
   NOTIFICATION_PREFS: "notificationPrefs",
 } as const;
 
-export const EDITABLE_SETTING_KEYS: string[] = Object.values(SETTING_KEYS);
+/** Stored as internal so GET /settings never echoes the raw token. */
+export const TELEGRAM_BOT_TOKEN_KEY = `${INTERNAL_KEY_PREFIX}telegramBotToken`;
 
-/**
- * Internal keys are machine-written state (never editable through the settings
- * endpoint) and are hidden from `GET /api/admin/settings`.
- */
-export const INTERNAL_KEY_PREFIX = "internal:";
+export const EDITABLE_SETTING_KEYS: string[] = Object.values(SETTING_KEYS);
 
 export function quoteAcceptanceKey(quoteId: string): string {
   return `${INTERNAL_KEY_PREFIX}quote-acceptance:${quoteId}`;
