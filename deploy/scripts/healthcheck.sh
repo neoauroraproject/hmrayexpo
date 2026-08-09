@@ -12,16 +12,27 @@ die() {
   exit 1
 }
 
+env_get() {
+  local key="$1"
+  local line
+  line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 || true)"
+  [[ -n "$line" ]] || return 1
+  line="${line#*=}"
+  line="${line%$'\r'}"
+  if [[ "$line" =~ ^\"(.*)\"$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  elif [[ "$line" =~ ^\'(.*)\'$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  else
+    printf '%s' "$line"
+  fi
+}
+
 main() {
   [[ -f "$COMPOSE_FILE" && -f "$ENV_FILE" ]] || die "HMRAY not installed at ${INSTALL_DIR}"
 
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  set +a
-
-  DOMAIN="${DOMAIN:-localhost}"
-  PANEL_PORT="${PANEL_PORT:-8443}"
+  DOMAIN="$(env_get DOMAIN || echo localhost)"
+  PANEL_PORT="$(env_get PANEL_PORT || echo 8443)"
   HEALTH_URL="https://${DOMAIN}:${PANEL_PORT}/health"
 
   echo "── Container status ──"
