@@ -70,8 +70,11 @@ fetch_src() {
   if [[ -d "${SRC_DIR}/.git" ]]; then
     echo "-> Updating source at ${SRC_DIR} ..."
     git -C "$SRC_DIR" remote set-url origin "$origin"
+    # Installer source must always match GitHub — discard any local edits.
     git -C "$SRC_DIR" fetch --depth 1 origin "$REF"
-    git -C "$SRC_DIR" checkout -B "$REF" "FETCH_HEAD"
+    git -C "$SRC_DIR" checkout -f -B "$REF" "FETCH_HEAD"
+    git -C "$SRC_DIR" reset --hard "FETCH_HEAD"
+    git -C "$SRC_DIR" clean -fd
   else
     echo "-> Cloning ${REPO}@${REF} ..."
     rm -rf "$SRC_DIR"
