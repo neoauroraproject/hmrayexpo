@@ -29,9 +29,12 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Uploads & backups
-uploads/
+# Runtime upload storage & backups (not source modules)
+/uploads/
+apps/api/uploads/
+apps/admin/uploads/
 backups/
+/opt/hmray/backups/
 
 # Prisma
 packages/database/prisma/migrations/**/migration.sql.bak
