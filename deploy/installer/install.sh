@@ -254,10 +254,16 @@ main() {
   fi
 
   log "Building images from source (this can take several minutes)..."
-  compose build
+  export DOCKER_BUILDKIT=1
+  export COMPOSE_DOCKER_CLI_BUILD=1
+  # Prefer host network during build when npm/GitHub are flaky inside bridge networking.
+  if ! compose build; then
+    log "Standard build failed — retrying with NPM China mirror fallback..."
+    NPM_REGISTRY=https://registry.npmmirror.com compose build
+  fi
 
   log "Starting services..."
-  compose up -d
+  compose up -d --remove-orphans
 
   wait_for_api
 

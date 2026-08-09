@@ -40,6 +40,9 @@ services:
     build:
       context: ./src
       dockerfile: docker/api.Dockerfile
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     image: hmray-api:local
     restart: unless-stopped
     env_file: .env
@@ -73,6 +76,9 @@ services:
     build:
       context: ./src
       dockerfile: docker/bot.Dockerfile
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     image: hmray-bot:local
     restart: unless-stopped
     env_file: .env
@@ -92,6 +98,9 @@ services:
     build:
       context: ./src
       dockerfile: docker/worker.Dockerfile
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     image: hmray-worker:local
     restart: unless-stopped
     env_file: .env
@@ -112,6 +121,10 @@ services:
     build:
       context: ./src
       dockerfile: docker/admin.Dockerfile
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        NEXT_PUBLIC_API_URL: ${PUBLIC_URL}/api
     image: hmray-admin:local
     restart: unless-stopped
     env_file: .env

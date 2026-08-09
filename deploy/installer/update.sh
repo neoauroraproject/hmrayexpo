@@ -55,10 +55,16 @@ main() {
   fi
 
   echo "Building images from source..."
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build
+  export DOCKER_BUILDKIT=1
+  export COMPOSE_DOCKER_CLI_BUILD=1
+  if ! docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build; then
+    echo "Build failed — retrying with npmmirror..."
+    NPM_REGISTRY=https://registry.npmmirror.com \
+      docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build
+  fi
 
   echo "Recreating services..."
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
+  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
 
   echo "Running migrations..."
   docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T api sh -c \

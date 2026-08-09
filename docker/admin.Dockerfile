@@ -1,7 +1,13 @@
 # syntax=docker/dockerfile:1
 
 FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+ARG TARGETARCH
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV TARGETARCH=${TARGETARCH}
+ENV NPM_REGISTRY=${NPM_REGISTRY}
+ENV npm_config_registry=${NPM_REGISTRY}
+COPY docker/install-pnpm.sh /tmp/install-pnpm.sh
+RUN sh /tmp/install-pnpm.sh
 WORKDIR /app
 
 FROM base AS deps
@@ -14,6 +20,8 @@ RUN pnpm install --frozen-lockfile || pnpm install
 FROM deps AS builder
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_API_URL=
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN pnpm --filter @hmray/admin... build
 
 FROM node:20-alpine AS runner
