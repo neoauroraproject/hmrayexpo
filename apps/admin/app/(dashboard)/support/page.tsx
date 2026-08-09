@@ -55,7 +55,7 @@ export default function SupportPage() {
     }
   };
 
-  const handleReply = async (text: string) => {
+  const handleReply = async (text: string, _attachmentIds: string[] = []) => {
     if (!selectedTicket) return;
     try {
       await apiFetch(`/admin/tickets/${selectedTicket.id}/messages`, {
@@ -177,7 +177,7 @@ export default function SupportPage() {
                 </div>
 
                 <div className="p-4 border-t border-slate-100 shrink-0 bg-white">
-                  <Composer onSend={(text) => handleReply(text)} placeholder="پاسخ خود را بنویسید..." />
+                  <Composer onSend={handleReply} placeholder="پاسخ خود را بنویسید..." />
                 </div>
               </>
             ) : (
