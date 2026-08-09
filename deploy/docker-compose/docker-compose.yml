@@ -146,7 +146,7 @@ services:
       api:
         condition: service_healthy
       admin:
-        condition: service_healthy
+        condition: service_started
 
 volumes:
   postgres_data:
