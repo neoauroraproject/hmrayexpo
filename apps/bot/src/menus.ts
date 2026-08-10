@@ -91,6 +91,51 @@ export function continueDraftInlineKeyboard(requestId: string): InlineKeyboard {
   return new InlineKeyboard().text("ادامه این درخواست", `req:continue:${requestId}`);
 }
 
+/** Copy / web view / cancel actions under each request or track card. */
+export function requestActionsInlineKeyboard(params: {
+  code: string;
+  requestId: string;
+  trackingUrl?: string | null;
+  isDraft?: boolean;
+  canCancel?: boolean;
+}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  if (params.trackingUrl) {
+    keyboard.url(L.BTN_OPEN_WEB, params.trackingUrl).row();
+  }
+  keyboard
+    .add({ text: L.BTN_COPY_CODE, copy_text: { text: params.code } } as never)
+    .row();
+  if (params.isDraft) {
+    keyboard.text(L.BTN_CONTINUE_DRAFT, `req:continue:${params.requestId}`).row();
+  }
+  if (params.canCancel) {
+    keyboard.text(L.BTN_CANCEL_REQUEST, `req:cancel:${params.requestId}`);
+  }
+  return keyboard;
+}
+
+export function cancelRequestConfirmKeyboard(requestId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(L.BTN_CONFIRM_CANCEL_REQUEST, `req:cancel:yes:${requestId}`)
+    .text(L.BTN_KEEP_REQUEST, `req:cancel:no:${requestId}`);
+}
+
+export function trackListInlineKeyboard(
+  items: Array<{ code: string; trackingUrl?: string | null }>,
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  for (const item of items) {
+    if (item.trackingUrl) {
+      keyboard.url(`🌐 ${item.code}`, item.trackingUrl).row();
+    } else {
+      keyboard.text(`🌐 ${item.code}`, `track:open:${item.code}`).row();
+    }
+  }
+  keyboard.text(L.BTN_ENTER_TRACK_CODE, "track:enter_code");
+  return keyboard;
+}
+
 export function yesNoInlineKeyboard(yesData: string, noData: string): InlineKeyboard {
   return new InlineKeyboard().text(L.SUPPORT_YES, yesData).text(L.SUPPORT_NO, noData);
 }

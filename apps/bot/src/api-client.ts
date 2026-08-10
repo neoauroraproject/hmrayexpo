@@ -66,6 +66,12 @@ export interface BotRequestQuoteSummary {
   url: string;
 }
 
+export interface BotRequestOrderSummary {
+  id: string;
+  code: string;
+  status: string;
+}
+
 export interface BotRequest {
   id: string;
   code: string;
@@ -78,6 +84,8 @@ export interface BotRequest {
   createdAt: string;
   items: BotRequestItem[];
   quotes?: BotRequestQuoteSummary[];
+  order?: BotRequestOrderSummary | null;
+  canCancel?: boolean;
   trackingCode?: string;
   trackingUrl?: string;
 }
@@ -331,6 +339,13 @@ export class ApiClient {
 
   finalizeRequest(requestId: string, telegramUserId: string): Promise<BotRequest> {
     return this.request(`/bot/requests/${encodeURIComponent(requestId)}/finalize`, {
+      method: "POST",
+      json: { telegramUserId },
+    });
+  }
+
+  cancelRequest(requestId: string, telegramUserId: string): Promise<BotRequest> {
+    return this.request(`/bot/requests/${encodeURIComponent(requestId)}/cancel`, {
       method: "POST",
       json: { telegramUserId },
     });

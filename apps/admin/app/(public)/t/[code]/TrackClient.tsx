@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
-import { Button } from "../../../components/ui/Button";
 
 interface TrackItem {
   displayIndex: number;
@@ -115,10 +114,20 @@ function formatFaDate(value: string | null | undefined): string {
   }
 }
 
+async function copyText(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function TrackClient({ code }: { code: string }) {
   const [data, setData] = useState<TrackData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     loadTrack();
@@ -138,26 +147,43 @@ export function TrackClient({ code }: { code: string }) {
     }
   }
 
+  async function onCopyCode() {
+    if (!data) return;
+    const ok = await copyText(data.trackingCode);
+    if (ok) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    }
+  }
+
   if (loading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center px-4">
-        <p className="text-sm tracking-wide text-stone-500">در حال بارگذاری…</p>
+      <div className="flex min-h-[70vh] items-center justify-center px-4">
+        <p className="text-sm tracking-[0.2em] text-[#7a8680]">HMRAY</p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16 text-center">
-        <p className="text-stone-700">{error || "موردی پیدا نشد"}</p>
-        <Button onClick={loadTrack} variant="outline" className="mt-6">
+      <div className="mx-auto max-w-md px-5 py-20 text-center">
+        <p className="text-[#1c2420]">{error || "موردی پیدا نشد"}</p>
+        <button
+          type="button"
+          onClick={loadTrack}
+          className="mt-8 border border-[#1c2420]/px-6 py-3 text-sm text-[#1c2420] transition hover:bg-[#1c2420] hover:text-[#f4f6f4]"
+        >
           تلاش مجدد
-        </Button>
+        </button>
       </div>
     );
   }
 
   const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME;
+  const statusLabel =
+    data.order
+      ? orderStatusLabels[data.order.status] || data.order.status
+      : requestStatusLabels[data.request.status] || data.request.status;
   const timeline =
     data.order?.timeline?.length
       ? data.order.timeline
@@ -166,177 +192,196 @@ export function TrackClient({ code }: { code: string }) {
         : [];
 
   return (
-    <div className="relative min-h-[calc(100vh-3.5rem)] overflow-hidden bg-[radial-gradient(ellipse_at_top,_#f7f3ec_0%,_#f0ebe3_45%,_#e8e2d8_100%)]">
+    <div className="relative min-h-[calc(100vh-3.5rem)] overflow-hidden bg-[#f4f6f4]">
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        className="pointer-events-none absolute inset-0 opacity-60"
+        style={{
+          background:
+            "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(47,79,68,0.12), transparent 60%), linear-gradient(180deg, #eef2ef 0%, #f4f6f4 38%, #e8ece9 100%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.04]"
         style={{
           backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23a89880' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            "linear-gradient(rgba(28,36,32,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(28,36,32,0.5) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
         }}
       />
 
-      <div className="relative mx-auto max-w-lg px-4 py-10 pb-24">
-        <header className="mb-10 text-center">
-          <p className="text-[11px] font-medium tracking-[0.28em] text-stone-500">HMRAY</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-stone-900">
-            {data.trackingCode}
-          </h1>
-          <p className="mt-2 text-sm text-stone-600">کد پیگیری شما تا تحویل</p>
-          {data.customerCode && (
-            <p className="mt-3 text-xs text-stone-500">مشتری: {data.customerCode}</p>
-          )}
-          <div className="mt-5 inline-flex items-center rounded-full border border-stone-300/80 bg-white/70 px-4 py-1.5 text-xs text-stone-700 backdrop-blur">
-            {requestStatusLabels[data.request.status] || data.request.status}
-            {data.request.storeName ? ` · ${data.request.storeName}` : ""}
-          </div>
+      <div className="relative mx-auto max-w-md px-5 pb-28 pt-12">
+        <header className="mb-12 text-center">
+          <p className="font-[family-name:var(--font-track-display)] text-4xl tracking-[0.22em] text-[#1c2420]">
+            HMRAY
+          </p>
+          <button
+            type="button"
+            onClick={onCopyCode}
+            className="mt-6 inline-flex flex-col items-center gap-1 transition active:scale-[0.99]"
+            aria-label="کپی کد پیگیری"
+          >
+            <span className="font-mono text-2xl tracking-wide text-[#1c2420]">{data.trackingCode}</span>
+            <span className="text-[11px] text-[#6b7872]">
+              {copied ? "کپی شد" : "برای کپی لمس کنید"}
+            </span>
+          </button>
+          <p className="mt-5 text-sm leading-relaxed text-[#4a5650]">{statusLabel}</p>
+          {data.request.storeName ? (
+            <p className="mt-2 text-xs text-[#7a8680]">{data.request.storeName}</p>
+          ) : null}
         </header>
 
-        <section className="mb-10">
-          <h2 className="mb-4 text-sm font-semibold tracking-wide text-stone-800">کالاها</h2>
-          <div className="space-y-3">
-            {data.request.items.map((item) => {
+        <section className="mb-12">
+          <h2 className="mb-5 text-[11px] font-medium tracking-[0.25em] text-[#6b7872]">کالاها</h2>
+          <ul className="space-y-0">
+            {data.request.items.map((item, index) => {
               const thumb = item.images?.[0];
               return (
-                <article
+                <li
                   key={`${item.productCode}-${item.displayIndex}`}
-                  className="flex gap-3 border-b border-stone-300/50 pb-4 last:border-0"
+                  className={`flex gap-4 py-5 ${index > 0 ? "border-t border-[#1c2420]/10" : ""}`}
                 >
                   {thumb ? (
-                    <div className="h-16 w-16 shrink-0 overflow-hidden bg-stone-200/80">
+                    <div className="h-20 w-20 shrink-0 overflow-hidden bg-[#dce3de]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={thumb} alt="" className="h-full w-full object-cover" />
                     </div>
                   ) : (
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center bg-stone-200/60 text-[10px] text-stone-500">
-                      بدون تصویر
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center bg-[#dce3de] text-[10px] text-[#6b7872]">
+                      —
                     </div>
                   )}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-stone-900">
-                      کالا #{String(item.displayIndex).padStart(2, "0")}
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <div className="text-sm text-[#1c2420]">
+                      کالا {String(item.displayIndex).padStart(2, "0")}
                     </div>
-                    <div className="mt-0.5 text-xs text-stone-500">{item.productCode}</div>
-                    {item.originalUrl && (
+                    <div className="mt-1 font-mono text-[11px] text-[#7a8680]" dir="ltr">
+                      {item.productCode}
+                    </div>
+                    {item.originalUrl ? (
                       <a
                         href={item.originalUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-1 inline-block truncate text-xs text-amber-900/80 underline-offset-2 hover:underline"
+                        className="mt-2 inline-block text-xs text-[#2f4f44] underline-offset-4 hover:underline"
                       >
                         لینک محصول
                       </a>
-                    )}
-                    {item.userNote && (
-                      <p className="mt-2 text-xs leading-relaxed text-stone-600">{item.userNote}</p>
-                    )}
+                    ) : null}
+                    {item.userNote ? (
+                      <p className="mt-2 text-xs leading-relaxed text-[#4a5650]">{item.userNote}</p>
+                    ) : null}
                   </div>
-                </article>
+                </li>
               );
             })}
-            {data.request.items.length === 0 && (
-              <p className="text-sm text-stone-500">هنوز کالایی ثبت نشده است.</p>
-            )}
-          </div>
+            {data.request.items.length === 0 ? (
+              <li className="py-4 text-sm text-[#6b7872]">هنوز کالایی ثبت نشده است.</li>
+            ) : null}
+          </ul>
         </section>
 
-        {data.quotes.length > 0 && (
-          <section className="mb-10">
-            <h2 className="mb-4 text-sm font-semibold tracking-wide text-stone-800">پیش‌فاکتورها</h2>
-            <div className="space-y-3">
+        {data.quotes.length > 0 ? (
+          <section className="mb-12">
+            <h2 className="mb-5 text-[11px] font-medium tracking-[0.25em] text-[#6b7872]">
+              پیش‌فاکتور
+            </h2>
+            <ul className="space-y-4">
               {data.quotes.map((quote) => (
-                <div
+                <li
                   key={quote.code}
-                  className="flex items-start justify-between gap-3 border-b border-stone-300/50 pb-3"
+                  className="flex items-end justify-between gap-4 border-b border-[#1c2420]/10 pb-4"
                 >
                   <div>
-                    <div className="text-sm font-medium text-stone-900">{quote.code}</div>
-                    <div className="mt-1 text-xs text-stone-500">
+                    <div className="text-sm text-[#1c2420]">{quote.code}</div>
+                    <div className="mt-1 text-xs text-[#6b7872]">
                       {quoteStatusLabels[quote.status] || quote.status}
                     </div>
-                    <div className="mt-1 text-xs text-stone-700">{quote.productsTotalLabel}</div>
+                    <div className="mt-2 text-sm text-[#1c2420]">{quote.productsTotalLabel}</div>
                   </div>
                   <a
                     href={quote.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 text-xs font-medium text-amber-950 underline-offset-2 hover:underline"
+                    className="shrink-0 text-xs text-[#2f4f44] underline-offset-4 hover:underline"
                   >
                     مشاهده
                   </a>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
-        )}
+        ) : null}
 
-        {data.payments.length > 0 && (
-          <section className="mb-10">
-            <h2 className="mb-4 text-sm font-semibold tracking-wide text-stone-800">پرداخت‌ها</h2>
-            <div className="space-y-3">
+        {data.payments.length > 0 ? (
+          <section className="mb-12">
+            <h2 className="mb-5 text-[11px] font-medium tracking-[0.25em] text-[#6b7872]">پرداخت‌ها</h2>
+            <ul className="space-y-4">
               {data.payments.map((payment) => (
-                <div
+                <li
                   key={payment.code}
-                  className="flex items-start justify-between gap-3 border-b border-stone-300/50 pb-3"
+                  className="flex items-start justify-between gap-4 border-b border-[#1c2420]/10 pb-4"
                 >
                   <div>
-                    <div className="text-sm font-medium text-stone-900">{payment.code}</div>
-                    <div className="mt-1 text-xs text-stone-500">
+                    <div className="text-sm text-[#1c2420]">{payment.code}</div>
+                    <div className="mt-1 text-xs text-[#6b7872]">
                       {paymentStatusLabels[payment.status] || payment.status}
                     </div>
-                    <div className="mt-1 text-[11px] text-stone-400">
+                    <div className="mt-1 text-[11px] text-[#7a8680]">
                       {formatFaDate(payment.createdAt)}
                     </div>
                   </div>
-                  <div className="text-sm text-stone-800">{payment.amountLabel}</div>
-                </div>
+                  <div className="text-sm text-[#1c2420]">{payment.amountLabel}</div>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
-        )}
+        ) : null}
 
-        {data.order && (
-          <section className="mb-10">
-            <div className="mb-4 flex items-baseline justify-between gap-3">
-              <h2 className="text-sm font-semibold tracking-wide text-stone-800">وضعیت سفارش</h2>
-              <span className="font-mono text-xs text-stone-500">{data.order.code}</span>
+        {data.order ? (
+          <section className="mb-12">
+            <div className="mb-5 flex items-baseline justify-between gap-3">
+              <h2 className="text-[11px] font-medium tracking-[0.25em] text-[#6b7872]">مسیر سفارش</h2>
+              <span className="font-mono text-[11px] text-[#7a8680]">{data.order.code}</span>
             </div>
-            <p className="mb-5 text-sm text-stone-700">
-              {orderStatusLabels[data.order.status] || data.order.status}
-              {data.order.totalTomanLabel ? ` · ${data.order.totalTomanLabel}` : ""}
-            </p>
-            <div className="relative border-r border-stone-300 pr-5">
+            {data.order.totalTomanLabel ? (
+              <p className="mb-6 text-sm text-[#1c2420]">{data.order.totalTomanLabel}</p>
+            ) : null}
+            <ol className="relative border-r border-[#1c2420]/15 pr-5">
               {timeline.map((event, idx) => (
-                <div key={`${event.toStatus}-${idx}`} className="relative mb-6 last:mb-0">
-                  <div className="absolute -right-[23px] top-1 h-2.5 w-2.5 rounded-full bg-stone-800 ring-4 ring-[#f3eee6]" />
-                  <div className="text-sm font-medium text-stone-900">
+                <li key={`${event.toStatus}-${idx}`} className="relative mb-7 last:mb-0">
+                  <span className="absolute -right-[23px] top-1.5 h-2 w-2 rounded-full bg-[#2f4f44] ring-4 ring-[#f4f6f4]" />
+                  <div className="text-sm text-[#1c2420]">
                     {orderStatusLabels[event.toStatus] || event.toStatus}
                   </div>
-                  <div className="mt-1 text-xs text-stone-500">{formatFaDate(event.createdAt)}</div>
-                </div>
+                  <div className="mt-1 text-xs text-[#7a8680]">{formatFaDate(event.createdAt)}</div>
+                </li>
               ))}
-            </div>
+            </ol>
           </section>
-        )}
-
-        {!data.order && (
-          <section className="mb-10 rounded-sm border border-dashed border-stone-300/80 bg-white/40 px-4 py-5 text-center">
-            <p className="text-sm text-stone-600">
-              هنوز سفارشی ثبت نشده است. پس از تأیید پیش‌فاکتور و پرداخت، وضعیت اینجا نمایش داده می‌شود.
+        ) : (
+          <section className="mb-12 border border-dashed border-[#1c2420]/15 px-4 py-6 text-center">
+            <p className="text-sm leading-relaxed text-[#4a5650]">
+              پس از تأیید پیش‌فاکتور و پرداخت، مسیر سفارش اینجا نمایش داده می‌شود.
+            </p>
+            <p className="mt-3 text-xs text-[#7a8680]">
+              برای انصراف یا ویرایش کالاها از ربات تلگرام استفاده کنید.
             </p>
           </section>
         )}
 
-        {botUsername && (
+        {botUsername ? (
           <div className="text-center">
             <a
               href={`https://t.me/${botUsername}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex h-11 items-center justify-center bg-stone-900 px-6 text-sm font-medium text-stone-50 transition-colors hover:bg-stone-800"
+              className="inline-flex h-12 items-center justify-center bg-[#1c2420] px-8 text-sm tracking-wide text-[#f4f6f4] transition hover:bg-[#2f4f44]"
             >
-              پشتیبانی در تلگرام
+              ادامه در تلگرام
             </a>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

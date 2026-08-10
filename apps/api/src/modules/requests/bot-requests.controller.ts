@@ -61,4 +61,9 @@ export class BotRequestsController {
   finalize(@Param("id") id: string, @Body() dto: BotActorBodyDto) {
     return this.requests.finalize(id, dto.telegramUserId);
   }
+
+  @Post(":id/cancel")
+  cancel(@Param("id") id: string, @Body() dto: BotActorBodyDto) {
+    return this.requests.cancelForBot(id, dto.telegramUserId);
+  }
 }

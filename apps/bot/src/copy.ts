@@ -157,6 +157,22 @@ export const MY_REQUESTS_EMPTY = [
 ].join("\n");
 export const MY_REQUESTS_TITLE = "📋 درخواست‌های شما:";
 
+export const BTN_OPEN_WEB = "🌐 مشاهده در وب";
+export const BTN_COPY_CODE = "📋 کپی کد";
+export const BTN_CONTINUE_DRAFT = "✏️ ادامه این درخواست";
+export const BTN_CANCEL_REQUEST = "❌ انصراف از درخواست";
+export const BTN_CONFIRM_CANCEL_REQUEST = "✅ بله، لغو شود";
+export const BTN_KEEP_REQUEST = "↩️ نگه دار";
+export const BTN_ENTER_TRACK_CODE = "⌨️ وارد کردن کد";
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 export function requestSummary(params: {
   code: string;
   statusLabel: string;
@@ -164,23 +180,47 @@ export function requestSummary(params: {
   isDraft: boolean;
   latestQuoteLine?: string;
 }): string {
+  const codeHtml = `<code>${escapeHtml(params.code)}</code>`;
   const lines = [
-    `🆔 ${params.code}${params.isDraft ? " (پیش‌نویس ✍️)" : ""}`,
-    `📊 وضعیت: ${params.statusLabel}`,
+    `🆔 ${codeHtml}${params.isDraft ? " (پیش‌نویس ✍️)" : ""}`,
+    `📊 وضعیت: ${escapeHtml(params.statusLabel)}`,
     `🧺 تعداد کالا: ${params.itemCount}`,
   ];
   if (params.latestQuoteLine) {
-    lines.push(params.latestQuoteLine);
+    lines.push(escapeHtml(params.latestQuoteLine));
   }
+  lines.push("");
+  lines.push("<i>برای کپی کد، روی آن لمس کنید یا دکمه کپی را بزنید.</i>");
   return lines.join("\n");
 }
 
 export const CONTINUE_DRAFT_HINT = "برای ادامه، دکمه زیر را بزنید 👇";
 
+export const CANCEL_REQUEST_CONFIRM = [
+  "آیا از لغو این درخواست مطمئنید؟",
+  "پس از لغو، دیگر قابل ادامه نیست.",
+].join("\n");
+
+export function requestCancelled(code: string): string {
+  return `✅ درخواست <code>${escapeHtml(code)}</code> لغو شد.`;
+}
+
+export const CANCEL_REQUEST_ABORTED = "خُب، درخواست شما همچنان فعال است.";
+
 // ─── Track order ─────────────────────────────────────────────────
 export const ASK_ORDER_CODE = [
   "📦 کد پیگیری یا کد سفارش را بفرستید.",
   "مثال: RQ-12345 یا HM-2026-01234",
+].join("\n");
+
+export const TRACK_INTRO = [
+  "📦 پیگیری سفارش",
+  "یکی از موارد زیر را در وب باز کنید، یا «وارد کردن کد» را بزنید.",
+].join("\n");
+
+export const TRACK_LIST_EMPTY = [
+  "📦 هنوز درخواست یا سفارشی برای پیگیری ندارید.",
+  "اگر کد دارید، آن را بفرستید:",
 ].join("\n");
 
 export const ORDER_NOT_FOUND = [
@@ -211,16 +251,18 @@ export function trackSummary(params: {
   trackingUrl?: string | null;
 }): string {
   const lines = [
-    `🔖 کد پیگیری: ${params.trackingCode}`,
-    `📊 وضعیت درخواست: ${params.requestStatusLabel}`,
+    `🔖 کد پیگیری: <code>${escapeHtml(params.trackingCode)}</code>`,
+    `📊 وضعیت درخواست: ${escapeHtml(params.requestStatusLabel)}`,
     `🧺 تعداد کالا: ${params.itemCount}`,
   ];
   if (params.orderCode && params.orderStatusLabel) {
-    lines.push(`📦 سفارش ${params.orderCode}: ${params.orderStatusLabel}`);
+    lines.push(
+      `📦 سفارش <code>${escapeHtml(params.orderCode)}</code>: ${escapeHtml(params.orderStatusLabel)}`,
+    );
   }
   if (params.trackingUrl) {
     lines.push("");
-    lines.push(`🌐 پیگیری آنلاین:\n${params.trackingUrl}`);
+    lines.push("🌐 جزئیات کامل را در صفحه وب ببینید.");
   }
   return lines.join("\n");
 }

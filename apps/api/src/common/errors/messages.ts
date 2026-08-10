@@ -19,6 +19,8 @@ export const FA = {
   REQUEST_EMPTY: "برای ثبت نهایی، حداقل یک کالا اضافه کنید.",
   REQUEST_CLOSED: "این درخواست بسته شده و قابل ویرایش نیست.",
   REQUEST_INVALID_TRANSITION: "تغییر وضعیت درخواست مجاز نیست.",
+  REQUEST_HAS_ORDER: "برای این درخواست سفارش ثبت شده و دیگر قابل انصراف نیست.",
+  REQUEST_ALREADY_CANCELLED: "این درخواست قبلاً لغو شده است.",
   ITEM_SOURCE_REQUIRED: "برای هر کالا، لینک یا تصویر لازم است.",
 
   QUOTE_NOT_FOUND: "پیش‌فاکتور یافت نشد.",

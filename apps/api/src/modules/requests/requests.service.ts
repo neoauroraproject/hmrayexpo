@@ -240,23 +240,98 @@ export class RequestsService {
             orderBy: { createdAt: "desc" },
             select: { id: true, code: true, status: true, expiresAt: true, publicToken: true },
           },
+          orders: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { id: true, code: true, status: true },
+          },
         },
       }),
       this.prisma.purchaseRequest.count({ where }),
     ]);
 
     return paginated(
-      items.map((request) => ({
-        ...request,
-        items: request.items.map(stripBigInt),
-        quotes: request.quotes.map((quote) => ({
-          ...quote,
-          url: this.config.quoteUrl(quote.publicToken),
-        })),
-      })),
+      items.map((request) => {
+        const { orders, ...rest } = request;
+        const order = orders[0] ?? null;
+        const canCancel = this.canCustomerCancel(request.status, order !== null);
+        return {
+          ...rest,
+          order,
+          canCancel,
+          trackingCode: request.code,
+          trackingUrl: this.config.trackingUrl(request.code),
+          items: request.items.map(stripBigInt),
+          quotes: request.quotes.map((quote) => ({
+            ...quote,
+            url: this.config.quoteUrl(quote.publicToken),
+          })),
+        };
+      }),
       total,
       args,
     );
+  }
+
+  /**
+   * Customer cancel via bot — allowed until an order exists.
+   * Once paid / order confirmed, cancellation is ops-only.
+   */
+  async cancelForBot(id: string, telegramUserId: string) {
+    const user = await this.customers.requireByTelegramId(telegramUserId);
+    const request = await this.requireOwnedRequest(id, user.id);
+
+    if (request.status === RequestStatus.CANCELLED) {
+      throw new ConflictException(FA.REQUEST_ALREADY_CANCELLED);
+    }
+
+    const order = await this.prisma.order.findFirst({
+      where: { requestId: request.id },
+      select: { id: true },
+    });
+    if (order) {
+      throw new ConflictException(FA.REQUEST_HAS_ORDER);
+    }
+
+    if (!canTransitionRequest(request.status, RequestStatus.CANCELLED)) {
+      throw new ConflictException(FA.REQUEST_INVALID_TRANSITION);
+    }
+
+    const updated = await this.prisma.purchaseRequest.update({
+      where: { id: request.id },
+      data: { status: RequestStatus.CANCELLED, closedAt: new Date() },
+      include: {
+        items: {
+          where: { status: { not: RequestItemStatus.REMOVED } },
+          orderBy: { displayIndex: "asc" },
+        },
+      },
+    });
+
+    await this.notifications.notifyAdmins({
+      event: NotificationEvent.SUPPORT_MESSAGE,
+      title: `انصراف مشتری از ${updated.code}`,
+      body: `مشتری ${user.customerCode} درخواست ${updated.code} را لغو کرد.`,
+      meta: {
+        requestId: updated.id,
+        requestCode: updated.code,
+        customerCode: user.customerCode,
+        url: `${this.config.adminPublicUrl.replace(/\/$/, "")}/requests/${updated.id}`,
+      },
+    });
+
+    return {
+      ...updated,
+      items: updated.items.map(stripBigInt),
+      canCancel: false,
+      trackingCode: updated.code,
+      trackingUrl: this.config.trackingUrl(updated.code),
+    };
+  }
+
+  private canCustomerCancel(status: RequestStatus, hasOrder: boolean): boolean {
+    if (hasOrder) return false;
+    return canTransitionRequest(status, RequestStatus.CANCELLED);
   }
 
   /** Customer-facing lifetime timeline by RQ- or HM-YYYY- order code. */
