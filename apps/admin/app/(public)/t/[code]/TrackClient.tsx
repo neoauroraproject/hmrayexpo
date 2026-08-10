@@ -38,6 +38,7 @@ interface TrackData {
   trackingCode: string;
   customerCode: string | null;
   trackingUrl?: string;
+  previewPending?: boolean;
   request: {
     id: string;
     code: string;
@@ -131,10 +132,41 @@ export function TrackClient({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    loadTrack();
+    let cancelled = false;
+    let retryTimer: number | undefined;
+
+    async function loadTrack(opts?: { silent?: boolean; attempt?: number }) {
+      try {
+        if (!opts?.silent) {
+          setLoading(true);
+          setError("");
+        }
+        const result = await apiFetch<TrackData>(`/public/track/${encodeURIComponent(code)}`);
+        if (cancelled) return;
+        setData(result);
+        const attempt = opts?.attempt ?? 0;
+        if (result.previewPending && attempt < 3) {
+          retryTimer = window.setTimeout(() => {
+            void loadTrack({ silent: true, attempt: attempt + 1 });
+          }, 2000 + attempt * 1500);
+        }
+      } catch (err: unknown) {
+        if (cancelled || opts?.silent) return;
+        const message = err instanceof Error ? err.message : "خطا در دریافت اطلاعات";
+        setError(message);
+      } finally {
+        if (!cancelled && !opts?.silent) setLoading(false);
+      }
+    }
+
+    void loadTrack();
+    return () => {
+      cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+    };
   }, [code]);
 
-  async function loadTrack() {
+  async function reload() {
     try {
       setLoading(true);
       setError("");
@@ -171,7 +203,7 @@ export function TrackClient({ code }: { code: string }) {
         <p className="text-[#1c2420]">{error || "موردی پیدا نشد"}</p>
         <button
           type="button"
-          onClick={loadTrack}
+          onClick={() => void reload()}
           className="mt-8 border border-[#1c2420]/px-6 py-3 text-sm text-[#1c2420] transition hover:bg-[#1c2420] hover:text-[#f4f6f4]"
         >
           تلاش مجدد

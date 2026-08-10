@@ -1,14 +1,12 @@
 import * as dns from "node:dns/promises";
 import * as net from "node:net";
 
-const FETCH_TIMEOUT_MS = 8_000;
-const MAX_HTML_BYTES = 512 * 1024;
+const FETCH_TIMEOUT_MS = 4_000;
+const MAX_HTML_BYTES = 384 * 1024;
 const MAX_REDIRECTS = 6;
 
 /** Prefer crawler UAs — Temu serves OG tags to these, but bot-challenge pages to browsers. */
 const CRAWLER_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
 export interface LinkPreview {
   title: string | null;
@@ -24,22 +22,16 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreview> {
     const parsed = parseHttpUrl(url);
     if (!parsed) return emptyPreview();
 
-    // Try crawler UA first (Temu / many stores), then browser UA.
-    for (const ua of [CRAWLER_UA, BROWSER_UA]) {
-      const result = await fetchWithRedirects(parsed.toString(), ua);
-      if (!result) continue;
-      const preview = extractPreview(result.html, result.finalUrl);
-      if (preview.title || preview.image) return preview;
-    }
+    const hop = await fetchWithRedirects(parsed.toString(), CRAWLER_UA);
+    if (!hop) return emptyPreview();
 
-    // Last resort: follow redirects only to harvest image query params.
-    const hop = await fetchWithRedirects(parsed.toString(), CRAWLER_UA, true);
-    if (hop) {
-      const fromQuery = imageFromUrlParams(hop.finalUrl);
-      if (fromQuery) return { title: null, image: fromQuery };
-    }
+    const fromQuery = imageFromUrlParams(hop.finalUrl);
+    const fromHtml = hop.html ? extractPreview(hop.html, hop.finalUrl) : emptyPreview();
 
-    return emptyPreview();
+    return {
+      title: fromHtml.title,
+      image: fromHtml.image ?? fromQuery,
+    };
   } catch {
     return emptyPreview();
   }
@@ -58,7 +50,6 @@ function emptyPreview(): LinkPreview {
 async function fetchWithRedirects(
   startUrl: string,
   userAgent: string,
-  headersOnlyOnSuccess = false,
 ): Promise<{ finalUrl: URL; html: string } | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -84,20 +75,25 @@ async function fetchWithRedirects(
       if (location && res.status >= 300 && res.status < 400) {
         const next = new URL(location, parsed);
         if (next.protocol !== "http:" && next.protocol !== "https:") return null;
+        // Temu (and similar) put product image on the redirect target query string.
+        // Prefer that fast path — avoid downloading challenge/SPA HTML when possible.
+        if (imageFromUrlParams(next)) {
+          // Still try one final fetch for title when cheap; if it fails, image alone is enough.
+          current = next.toString();
+          const titleHop = await fetchFinalHtml(current, userAgent, controller.signal);
+          return {
+            finalUrl: next,
+            html: titleHop?.html ?? "",
+          };
+        }
         current = next.toString();
         continue;
       }
 
       if (!res.ok) return null;
 
-      const finalUrl = res.url ? new URL(res.url) : parsed;
-      // Some runtimes update res.url even with manual redirects; prefer current.
-      const resolvedFinal = parseHttpUrl(current) ?? finalUrl;
+      const resolvedFinal = parseHttpUrl(current) ?? parsed;
       if (await isBlockedHost(resolvedFinal.hostname)) return null;
-
-      if (headersOnlyOnSuccess) {
-        return { finalUrl: resolvedFinal, html: "" };
-      }
 
       const html = await readLimitedText(res, MAX_HTML_BYTES);
       if (!html) return null;
@@ -106,6 +102,36 @@ async function fetchWithRedirects(
     return null;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function fetchFinalHtml(
+  url: string,
+  userAgent: string,
+  signal: AbortSignal,
+): Promise<{ html: string } | null> {
+  try {
+    const parsed = parseHttpUrl(url);
+    if (!parsed) return null;
+    if (await isBlockedHost(parsed.hostname)) return null;
+
+    const res = await fetch(parsed.toString(), {
+      method: "GET",
+      redirect: "follow",
+      signal,
+      headers: {
+        "User-Agent": userAgent,
+        Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+    if (!res.ok) return null;
+    const finalHost = res.url ? new URL(res.url).hostname : parsed.hostname;
+    if (await isBlockedHost(finalHost)) return null;
+    const html = await readLimitedText(res, MAX_HTML_BYTES);
+    return html ? { html } : null;
+  } catch {
+    return null;
   }
 }
 
@@ -149,7 +175,6 @@ function extractTitleMeta(html: string): string | null {
 function cleanProductTitle(raw: string | null): string | null {
   if (!raw) return null;
   let title = raw.replace(/\s+/g, " ").trim();
-  // Common Temu suffix noise
   title = title.replace(/\s*[-|–—]\s*Temu(\s+\w+)?\s*$/i, "").trim();
   if (!title) return null;
   if (title.length > 280) title = `${title.slice(0, 277).trim()}…`;

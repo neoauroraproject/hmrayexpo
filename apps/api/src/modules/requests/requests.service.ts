@@ -80,24 +80,13 @@ export class RequestsService {
     }
 
     let images = dto.images ?? [];
-    let title: string | null = null;
-    if (dto.originalUrl && images.length === 0) {
-      const preview = await fetchLinkPreview(dto.originalUrl);
-      if (preview.image) {
-        images = [preview.image];
-      }
-      title = preview.title;
-    } else if (dto.originalUrl) {
-      const preview = await fetchLinkPreview(dto.originalUrl);
-      title = preview.title;
-    }
-
-    return this.prisma.requestItem.create({
+    // Don't block the bot on Temu/OG fetches — save immediately, backfill in background.
+    const item = await this.prisma.requestItem.create({
       data: {
         requestId: request.id,
         displayIndex: await this.nextDisplayIndex(request.id),
         productCode: this.productCodeFor(request.type),
-        title,
+        title: null,
         originalUrl: dto.originalUrl ?? null,
         images,
         userNote: dto.userNote ?? null,
@@ -105,6 +94,19 @@ export class RequestsService {
         telegramMessageId: dto.telegramMessageId ? BigInt(dto.telegramMessageId) : null,
       },
     });
+
+    if (dto.originalUrl) {
+      this.enqueuePreviewBackfill([
+        {
+          id: item.id,
+          originalUrl: item.originalUrl,
+          images: item.images,
+          title: item.title,
+        },
+      ]);
+    }
+
+    return item;
   }
 
   async updateItemNote(
@@ -163,27 +165,38 @@ export class RequestsService {
     return stripBigInt(updated);
   }
 
-  /** Lazy backfill for public track / customer views. */
-  private async enrichItemsMissingPreview<
-    T extends {
+  /** Lazy backfill — never blocks API responses. Dedupes retries per process. */
+  private static readonly previewAttemptAt = new Map<string, number>();
+  private static readonly PREVIEW_RETRY_MS = 6 * 60 * 60 * 1000;
+
+  private enqueuePreviewBackfill(
+    items: Array<{
       id: string;
       originalUrl: string | null;
       images: string[];
       title?: string | null;
-    },
-  >(items: T[]): Promise<T[]> {
-    const needing = items.filter(
-      (item) =>
-        item.originalUrl &&
-        ((!item.images || item.images.length === 0) || !item.title),
-    );
-    if (needing.length === 0) return items;
+    }>,
+  ): void {
+    const now = Date.now();
+    const needing = items.filter((item) => {
+      if (!item.originalUrl) return false;
+      const missingImage = !item.images || item.images.length === 0;
+      const missingTitle = !item.title;
+      if (!missingImage && !missingTitle) return false;
+      const last = RequestsService.previewAttemptAt.get(item.id) ?? 0;
+      return now - last >= RequestsService.PREVIEW_RETRY_MS;
+    });
+    if (needing.length === 0) return;
 
-    const updates = await Promise.all(
+    for (const item of needing) {
+      RequestsService.previewAttemptAt.set(item.id, now);
+    }
+
+    void Promise.allSettled(
       needing.map(async (item) => {
         try {
           const preview = await fetchLinkPreview(item.originalUrl!);
-          if (!preview.image && !preview.title) return null;
+          if (!preview.image && !preview.title) return;
           const data: { images?: string[]; title?: string } = {};
           if (preview.image && (!item.images || item.images.length === 0)) {
             data.images = [preview.image];
@@ -191,31 +204,13 @@ export class RequestsService {
           if (preview.title && !item.title) {
             data.title = preview.title;
           }
-          if (Object.keys(data).length === 0) return null;
-          const updated = await this.prisma.requestItem.update({
-            where: { id: item.id },
-            data,
-            select: { id: true, images: true, title: true },
-          });
-          return updated;
+          if (Object.keys(data).length === 0) return;
+          await this.prisma.requestItem.update({ where: { id: item.id }, data });
         } catch {
-          return null;
+          /* ignore background failures */
         }
       }),
     );
-
-    const byId = new Map(updates.filter(Boolean).map((row) => [row!.id, row!]));
-    if (byId.size === 0) return items;
-
-    return items.map((item) => {
-      const patch = byId.get(item.id);
-      if (!patch) return item;
-      return {
-        ...item,
-        images: patch.images.length > 0 ? patch.images : item.images,
-        title: patch.title ?? item.title ?? null,
-      };
-    });
   }
 
   /**
@@ -479,7 +474,12 @@ export class RequestsService {
     }
 
     const order = request.orders[0] ?? null;
-    const items = await this.enrichItemsMissingPreview(request.items);
+    const previewPending = request.items.some(
+      (item) =>
+        item.originalUrl &&
+        ((!item.images || item.images.length === 0) || !item.title),
+    );
+    this.enqueuePreviewBackfill(request.items);
 
     const payments = await this.prisma.payment.findMany({
       where: {
@@ -501,6 +501,7 @@ export class RequestsService {
     return {
       trackingCode: request.code,
       customerCode: request.user.customerCode ?? null,
+      previewPending,
       request: {
         id: request.id,
         code: request.code,
@@ -508,7 +509,7 @@ export class RequestsService {
         status: request.status,
         submittedAt: request.submittedAt,
         storeName: request.storeName,
-        items: items.map(({ id: _id, ...item }) => item),
+        items: request.items.map(({ id: _id, ...item }) => item),
       },
       quotes: request.quotes.map((quote) => ({
         code: quote.code,
