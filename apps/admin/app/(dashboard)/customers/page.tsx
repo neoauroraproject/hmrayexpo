@@ -13,6 +13,15 @@ interface CustomerItem {
   displayName?: string | null;
   phone?: string | null;
   createdAt: string;
+  telegramAccount?: {
+    username?: string | null;
+    telegramUserId?: string | null;
+  } | null;
+  _count?: {
+    requests?: number;
+    orders?: number;
+    tickets?: number;
+  } | null;
 }
 
 export default function CustomersPage() {
@@ -24,24 +33,29 @@ export default function CustomersPage() {
     const fetchCustomers = async () => {
       setError(null);
       try {
-        const data = await apiFetch<unknown>("/admin/customers");
+        const data = await apiFetch<unknown>("/admin/customers", {
+          params: { pageSize: 50 },
+        });
         setCustomers(unwrapItems<CustomerItem>(data));
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to fetch customers:", err);
         setCustomers([]);
-        setError(err?.message || "خطا در بارگذاری مشتریان");
+        setError(err instanceof Error ? err.message : "خطا در بارگذاری مشتریان");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCustomers();
+    void fetchCustomers();
   }, []);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div>
         <h1 className="text-2xl font-bold text-slate-900">مشتریان</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          همه کسانی که ربات را با /start شروع کرده‌اند
+        </p>
       </div>
 
       {error && (
@@ -56,20 +70,23 @@ export default function CustomersPage() {
                 <th className="px-6 py-4 font-medium">کد مشتری</th>
                 <th className="px-6 py-4 font-medium">نام</th>
                 <th className="px-6 py-4 font-medium">موبایل</th>
-                <th className="px-6 py-4 font-medium">تاریخ عضویت</th>
+                <th className="px-6 py-4 font-medium">تلگرام</th>
+                <th className="px-6 py-4 font-medium">شناسه تلگرام</th>
+                <th className="px-6 py-4 font-medium">درخواست‌ها</th>
+                <th className="px-6 py-4 font-medium">سفارش‌ها</th>
                 <th className="px-6 py-4 font-medium text-left">عملیات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
                     در حال بارگذاری...
                   </td>
                 </tr>
               ) : customers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
                     هیچ مشتری یافت نشد.
                   </td>
                 </tr>
@@ -83,9 +100,16 @@ export default function CustomersPage() {
                     <td className="px-6 py-4" dir="ltr">
                       {customer.phone || "—"}
                     </td>
-                    <td className="px-6 py-4 text-slate-600" dir="ltr">
-                      {new Date(customer.createdAt).toLocaleDateString("fa-IR")}
+                    <td className="px-6 py-4" dir="ltr">
+                      {customer.telegramAccount?.username
+                        ? `@${customer.telegramAccount.username}`
+                        : "—"}
                     </td>
+                    <td className="px-6 py-4 text-slate-600" dir="ltr">
+                      {customer.telegramAccount?.telegramUserId || "—"}
+                    </td>
+                    <td className="px-6 py-4">{customer._count?.requests ?? 0}</td>
+                    <td className="px-6 py-4">{customer._count?.orders ?? 0}</td>
                     <td className="px-6 py-4 text-left">
                       <Link
                         href={`/customers/${customer.id}`}
