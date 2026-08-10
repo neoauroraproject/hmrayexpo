@@ -96,6 +96,7 @@ export default function RequestWorkspacePage() {
   const [savingPriceId, setSavingPriceId] = useState<string | null>(null);
   const [refreshingPreviewId, setRefreshingPreviewId] = useState<string | null>(null);
   const [issuing, setIssuing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const loadOmrRate = useCallback(async () => {
@@ -181,6 +182,29 @@ export default function RequestWorkspacePage() {
     }
   };
 
+  const handleCancelRequest = async () => {
+    if (
+      !window.confirm(
+        "آیا از لغو این درخواست مطمئنید؟ پیش‌فاکتورهای باز نیز بسته می‌شوند.",
+      )
+    ) {
+      return;
+    }
+    setCancelling(true);
+    setActionError(null);
+    try {
+      await apiFetch(`/admin/requests/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "CANCELLED", note: "لغو توسط ادمین" }),
+      });
+      await loadRequest();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "خطا در لغو درخواست");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handleRefreshPreview = async (itemId: string) => {
     setRefreshingPreviewId(itemId);
     setActionError(null);
@@ -249,11 +273,22 @@ export default function RequestWorkspacePage() {
   const totalToman = totalOmr * rateNum;
   const user = request.user;
   const notes = request.notes ?? [];
+  const canCancelRequest = !["CANCELLED", "EXPIRED"].includes(request.status);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-slate-900">فضای کاری درخواست {request.code}</h1>
+        {canCancelRequest ? (
+          <Button
+            variant="outline"
+            onClick={() => void handleCancelRequest()}
+            disabled={cancelling}
+            className="border-red-200 text-red-700 hover:bg-red-50"
+          >
+            {cancelling ? "در حال لغو…" : "لغو درخواست"}
+          </Button>
+        ) : null}
       </div>
 
       {actionError && (

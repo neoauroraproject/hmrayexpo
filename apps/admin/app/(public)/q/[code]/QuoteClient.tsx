@@ -14,6 +14,9 @@ interface QuoteItem {
   price: string;
   currency: string;
   imageUrl: string | null;
+  originalUrl?: string | null;
+  userNote?: string | null;
+  adminNote?: string | null;
   totalToman: string;
   totalTomanLabel: string;
 }
@@ -43,6 +46,7 @@ interface QuoteData {
   expiresAt: string;
   sentAt: string;
   acceptedAt: string | null;
+  inspectionHint?: string;
   request: { code: string; type: string; storeName: string };
   customer: { customerCode: string; displayName: string };
   items: QuoteItem[];
@@ -230,7 +234,14 @@ export function QuoteClient({ code }: { code: string }) {
     <div className="mx-auto max-w-lg p-4 pb-24">
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold text-slate-900">خلاصه خرید شما</h1>
-        <p className="mt-1 text-sm text-slate-500 font-mono">{quote.code}</p>
+        <button
+          type="button"
+          onClick={() => void navigator.clipboard?.writeText(quote.code)}
+          className="mt-1 text-sm text-slate-500 font-mono hover:text-slate-800"
+          title="کپی کد"
+        >
+          {quote.code}
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -239,20 +250,57 @@ export function QuoteClient({ code }: { code: string }) {
             <CardContent className="p-4 flex gap-4">
               {item.imageUrl ? (
                 <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-slate-100">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={item.imageUrl} alt={item.title || ""} className="h-full w-full object-cover" />
                 </div>
               ) : (
-                <div className="h-20 w-20 shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-slate-400">
+                <div className="h-20 w-20 shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 text-xs">
                   بدون تصویر
                 </div>
               )}
-              <div className="flex flex-1 flex-col justify-between">
+              <div className="flex min-w-0 flex-1 flex-col justify-between">
                 <div>
-                  <div className="text-xs text-slate-400 mb-1">#{String(idx + 1).padStart(2, "0")}</div>
-                  <h3 className="font-medium text-slate-900 line-clamp-2">{item.title || item.productCode}</h3>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="text-xs text-slate-400">#{String(idx + 1).padStart(2, "0")}</span>
+                    <button
+                      type="button"
+                      dir="ltr"
+                      onClick={() => void navigator.clipboard?.writeText(item.productCode)}
+                      className="font-mono text-[11px] text-slate-500 hover:text-slate-800"
+                      title="کپی کد کالا"
+                    >
+                      {item.productCode}
+                    </button>
+                  </div>
+                  <h3 className="font-medium text-slate-900 line-clamp-2">
+                    {item.title?.trim() || item.productCode}
+                  </h3>
+                  {item.originalUrl ? (
+                    <a
+                      href={item.originalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-block text-xs text-blue-600 underline-offset-2 hover:underline"
+                    >
+                      لینک محصول
+                    </a>
+                  ) : null}
+                  {item.userNote ? (
+                    <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                      <span className="font-medium text-slate-700">توضیح شما: </span>
+                      {item.userNote}
+                    </p>
+                  ) : null}
+                  {item.adminNote ? (
+                    <p className="mt-1 text-xs leading-relaxed text-amber-800/90">
+                      <span className="font-medium">توضیح تیم: </span>
+                      {item.adminNote}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="mt-2 text-left font-bold text-slate-900">
-                  {item.totalTomanLabel} <span className="text-xs font-normal text-slate-500">تومان</span>
+                  {item.totalTomanLabel}{" "}
+                  <span className="text-xs font-normal text-slate-500">تومان</span>
                 </div>
               </div>
             </CardContent>
@@ -306,19 +354,59 @@ export function QuoteClient({ code }: { code: string }) {
           </div>
 
           <div className="pt-4 border-t border-slate-100">
-            <h4 className="mb-3 text-sm font-bold text-slate-900">نوع بررسی کالا</h4>
+            <h4 className="mb-1 text-sm font-bold text-slate-900">بازبینی کالا</h4>
+            <p className="mb-3 text-xs leading-relaxed text-slate-600">
+              {quote.inspectionHint ||
+                "وقتی از Temu خرید شد، بازبینی کالا در عمان را چطور می‌خواهید انجام دهیم؟"}
+            </p>
             <div className="space-y-2">
-              <label className="flex items-center gap-3 cursor-pointer rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
-                <input type="radio" name="inspection" value="FULL_OPEN" checked={inspectionType === "FULL_OPEN"} onChange={() => setInspectionType("FULL_OPEN")} className="h-4 w-4 text-primary focus:ring-primary" />
-                <span className="text-sm text-slate-700">بررسی کامل و باز کردن</span>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
+                <input
+                  type="radio"
+                  name="inspection"
+                  value="FULL_OPEN"
+                  checked={inspectionType === "FULL_OPEN"}
+                  onChange={() => setInspectionType("FULL_OPEN")}
+                  className="mt-0.5 h-4 w-4 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-slate-700">
+                  <span className="font-medium text-slate-900">باز کردن کامل</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    بسته باز می‌شود و کالا بررسی می‌شود (مناسب اگر نگران خرابی یا اشتباه هستید)
+                  </span>
+                </span>
               </label>
-              <label className="flex items-center gap-3 cursor-pointer rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
-                <input type="radio" name="inspection" value="VISUAL_ONLY" checked={inspectionType === "VISUAL_ONLY"} onChange={() => setInspectionType("VISUAL_ONLY")} className="h-4 w-4 text-primary focus:ring-primary" />
-                <span className="text-sm text-slate-700">فقط ظاهری</span>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
+                <input
+                  type="radio"
+                  name="inspection"
+                  value="VISUAL_ONLY"
+                  checked={inspectionType === "VISUAL_ONLY"}
+                  onChange={() => setInspectionType("VISUAL_ONLY")}
+                  className="mt-0.5 h-4 w-4 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-slate-700">
+                  <span className="font-medium text-slate-900">فقط ظاهر</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    بدون باز کردن کامل؛ ظاهر بسته‌بندی بررسی می‌شود
+                  </span>
+                </span>
               </label>
-              <label className="flex items-center gap-3 cursor-pointer rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
-                <input type="radio" name="inspection" value="SEALED" checked={inspectionType === "SEALED"} onChange={() => setInspectionType("SEALED")} className="h-4 w-4 text-primary focus:ring-primary" />
-                <span className="text-sm text-slate-700">بدون باز کردن و پلمپ</span>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
+                <input
+                  type="radio"
+                  name="inspection"
+                  value="SEALED"
+                  checked={inspectionType === "SEALED"}
+                  onChange={() => setInspectionType("SEALED")}
+                  className="mt-0.5 h-4 w-4 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-slate-700">
+                  <span className="font-medium text-slate-900">پلمپ / بدون باز کردن</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    کالا دست‌نخورده و پلمپ ارسال می‌شود
+                  </span>
+                </span>
               </label>
             </div>
           </div>

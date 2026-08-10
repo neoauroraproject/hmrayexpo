@@ -644,6 +644,16 @@ export class RequestsService {
       data: { status, closedAt: closed },
     });
 
+    if (status === RequestStatus.CANCELLED || status === RequestStatus.EXPIRED) {
+      await this.prisma.quote.updateMany({
+        where: {
+          requestId: request.id,
+          status: { in: [QuoteStatus.DRAFT, QuoteStatus.SENT] },
+        },
+        data: { status: QuoteStatus.SUPERSEDED },
+      });
+    }
+
     if (note) {
       await this.prisma.entityNote.create({
         data: {

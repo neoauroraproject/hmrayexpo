@@ -15,6 +15,7 @@ import {
   QuoteStatus,
   RequestItemStatus,
   RequestStatus,
+  RequestType,
 } from "@hmray/database";
 import { formatToman, generateQuoteId } from "@hmray/shared";
 import { PrismaService } from "../../common/prisma/prisma.service";
@@ -294,6 +295,18 @@ export class QuotesService {
       this.prisma.quoteItem.findMany({
         where: { quoteId: quote.id },
         orderBy: { displayIndex: "asc" },
+        include: {
+          requestItem: {
+            select: {
+              originalUrl: true,
+              userNote: true,
+              adminNote: true,
+              title: true,
+              images: true,
+              productCode: true,
+            },
+          },
+        },
       }),
       this.prisma.quoteNote.findMany({
         where: { quoteId: quote.id },
@@ -322,6 +335,7 @@ export class QuotesService {
     ]);
 
     const rates: RateMap = { [Currency.OMR]: quote.omrRate };
+    const isTemu = request.type === RequestType.TEMU;
 
     return {
       code: quote.code,
@@ -336,17 +350,24 @@ export class QuotesService {
       acceptedAt: quote.acceptedAt,
       request,
       customer: user,
+      inspectionHint: isTemu
+        ? "وقتی از Temu خرید شد، بازبینی کالا در عمان را چطور می‌خواهید انجام دهیم؟"
+        : "بازبینی کالا قبل از ارسال به ایران را چطور می‌خواهید؟",
       items: items.map((item) => {
         const total = lineTotalToman(item.price, item.quantity, item.currency, rates);
+        const source = item.requestItem;
         return {
           id: item.id,
           displayIndex: item.displayIndex,
           productCode: item.productCode,
-          title: item.title,
+          title: item.title ?? source?.title ?? null,
           quantity: item.quantity,
           price: item.price.toString(),
           currency: item.currency,
-          imageUrl: item.imageUrl,
+          imageUrl: item.imageUrl ?? source?.images?.[0] ?? null,
+          originalUrl: source?.originalUrl ?? null,
+          userNote: source?.userNote ?? null,
+          adminNote: source?.adminNote ?? null,
           totalToman: total.toString(),
           totalTomanLabel: formatToman(Number(total)),
         };
