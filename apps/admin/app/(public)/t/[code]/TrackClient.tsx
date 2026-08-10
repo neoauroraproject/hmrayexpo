@@ -10,6 +10,7 @@ interface TrackItem {
   originalUrl: string | null;
   images: string[];
   userNote: string | null;
+  adminNote?: string | null;
   status: string;
 }
 
@@ -103,6 +104,42 @@ const quoteStatusLabels: Record<string, string> = {
   EXPIRED: "منقضی‌شده",
   SUPERSEDED: "نسخه جدیدتر",
 };
+
+function statusTone(kind: "neutral" | "progress" | "success" | "danger" | "warn"): string {
+  switch (kind) {
+    case "progress":
+      return "border-[#2f4f44]/25 bg-[#2f4f44]/10 text-[#1f3a32]";
+    case "success":
+      return "border-emerald-700/20 bg-emerald-50 text-emerald-900";
+    case "danger":
+      return "border-rose-700/20 bg-rose-50 text-rose-900";
+    case "warn":
+      return "border-amber-700/20 bg-amber-50 text-amber-950";
+    default:
+      return "border-[#1c2420]/12 bg-white/70 text-[#3a4640]";
+  }
+}
+
+function requestStatusTone(status: string, submittedAt: string | null): string {
+  if (status === "CANCELLED" || status === "EXPIRED") return statusTone("danger");
+  if (status === "QUOTED") return statusTone("warn");
+  if (status === "UNDER_REVIEW" || (status === "REQUESTED" && submittedAt)) {
+    return statusTone("progress");
+  }
+  return statusTone("neutral");
+}
+
+function orderStatusTone(status: string): string {
+  if (status === "CANCELLED") return statusTone("danger");
+  if (status === "DELIVERED") return statusTone("success");
+  if (status === "PAID" || status === "CONFIRMED") return statusTone("progress");
+  return statusTone("progress");
+}
+
+function resolveRequestStatusLabel(status: string, submittedAt: string | null): string {
+  if (status === "REQUESTED" && !submittedAt) return "پیش‌نویس";
+  return requestStatusLabels[status] || status;
+}
 
 function formatFaDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -213,10 +250,26 @@ export function TrackClient({ code }: { code: string }) {
   }
 
   const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME;
-  const statusLabel =
-    data.order
-      ? orderStatusLabels[data.order.status] || data.order.status
-      : requestStatusLabels[data.request.status] || data.request.status;
+  const requestStatusLabel = resolveRequestStatusLabel(
+    data.request.status,
+    data.request.submittedAt,
+  );
+  const statusLabel = data.order
+    ? orderStatusLabels[data.order.status] || data.order.status
+    : requestStatusLabel;
+  const statusClass = data.order
+    ? orderStatusTone(data.order.status)
+    : requestStatusTone(data.request.status, data.request.submittedAt);
+  const quoteLink =
+    data.quotes.find((q) => q.status === "SENT" || q.status === "ACCEPTED") ??
+    data.quotes[0] ??
+    null;
+  const showQuoteCta =
+    Boolean(quoteLink?.url) &&
+    (data.request.status === "QUOTED" ||
+      quoteLink?.status === "SENT" ||
+      quoteLink?.status === "ACCEPTED") &&
+    !data.order;
   const timeline =
     data.order?.timeline?.length
       ? data.order.timeline
@@ -244,8 +297,8 @@ export function TrackClient({ code }: { code: string }) {
 
       <div className="relative mx-auto max-w-md px-5 pb-28 pt-12">
         <header className="mb-12 text-center">
-          <p className="font-[family-name:var(--font-track-display)] text-4xl tracking-[0.22em] text-[#1c2420]">
-            HMRAY
+          <p className="font-[family-name:var(--font-track-display)] text-3xl tracking-[0.12em] text-[#1c2420]">
+            HMray Expo
           </p>
           <button
             type="button"
@@ -258,9 +311,28 @@ export function TrackClient({ code }: { code: string }) {
               {copied ? "کپی شد" : "برای کپی لمس کنید"}
             </span>
           </button>
-          <p className="mt-5 text-sm leading-relaxed text-[#4a5650]">{statusLabel}</p>
+          <div className="mt-5 flex flex-col items-center gap-2">
+            <span
+              className={`inline-flex items-center rounded-full border px-4 py-1.5 text-xs font-medium tracking-wide ${statusClass}`}
+            >
+              وضعیت: {statusLabel}
+            </span>
+            {data.order ? (
+              <span className="text-[11px] text-[#7a8680]">
+                درخواست: {requestStatusLabel}
+              </span>
+            ) : null}
+          </div>
           {data.request.storeName ? (
-            <p className="mt-2 text-xs text-[#7a8680]">{data.request.storeName}</p>
+            <p className="mt-3 text-xs text-[#7a8680]">{data.request.storeName}</p>
+          ) : null}
+          {showQuoteCta && quoteLink ? (
+            <a
+              href={quoteLink.url}
+              className="mt-6 inline-flex h-11 items-center justify-center bg-[#1c2420] px-6 text-sm text-[#f4f6f4] transition hover:bg-[#2f4f44]"
+            >
+              مشاهده پیش‌فاکتور و قیمت
+            </a>
           ) : null}
         </header>
 
@@ -302,7 +374,16 @@ export function TrackClient({ code }: { code: string }) {
                       </a>
                     ) : null}
                     {item.userNote ? (
-                      <p className="mt-2 text-xs leading-relaxed text-[#4a5650]">{item.userNote}</p>
+                      <p className="mt-2 text-xs leading-relaxed text-[#4a5650]">
+                        <span className="font-medium text-[#2f3a35]">توضیح شما: </span>
+                        {item.userNote}
+                      </p>
+                    ) : null}
+                    {item.adminNote ? (
+                      <p className="mt-1 text-xs leading-relaxed text-[#5a4a2e]">
+                        <span className="font-medium">توضیح تیم: </span>
+                        {item.adminNote}
+                      </p>
                     ) : null}
                   </div>
                 </li>
@@ -394,12 +475,32 @@ export function TrackClient({ code }: { code: string }) {
           </section>
         ) : (
           <section className="mb-12 border border-dashed border-[#1c2420]/15 px-4 py-6 text-center">
-            <p className="text-sm leading-relaxed text-[#4a5650]">
-              پس از تأیید پیش‌فاکتور و پرداخت، مسیر سفارش اینجا نمایش داده می‌شود.
-            </p>
-            <p className="mt-3 text-xs text-[#7a8680]">
-              برای انصراف یا ویرایش کالاها از ربات تلگرام استفاده کنید.
-            </p>
+            {data.request.status === "CANCELLED" ? (
+              <p className="text-sm leading-relaxed text-[#4a5650]">این درخواست لغو شده است.</p>
+            ) : data.request.status === "EXPIRED" ? (
+              <p className="text-sm leading-relaxed text-[#4a5650]">مهلت این درخواست به پایان رسیده است.</p>
+            ) : showQuoteCta && quoteLink ? (
+              <>
+                <p className="text-sm leading-relaxed text-[#4a5650]">
+                  پیش‌فاکتور آماده است. برای دیدن قیمت و تأیید، روی دکمه زیر بزنید.
+                </p>
+                <a
+                  href={quoteLink.url}
+                  className="mt-4 inline-flex h-11 items-center justify-center border border-[#1c2420] px-5 text-sm text-[#1c2420] transition hover:bg-[#1c2420] hover:text-[#f4f6f4]"
+                >
+                  برو به پیش‌فاکتور
+                </a>
+              </>
+            ) : (
+              <>
+                <p className="text-sm leading-relaxed text-[#4a5650]">
+                  پس از تأیید پیش‌فاکتور و پرداخت، مسیر سفارش اینجا نمایش داده می‌شود.
+                </p>
+                <p className="mt-3 text-xs text-[#7a8680]">
+                  برای انصراف یا ویرایش کالاها از ربات تلگرام استفاده کنید.
+                </p>
+              </>
+            )}
           </section>
         )}
 

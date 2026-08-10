@@ -200,6 +200,12 @@ export class PriceRequestItemDto {
   adminNote?: string;
 }
 
+export class UpdateRequestItemAdminNoteDto {
+  @IsString()
+  @MaxLength(1000)
+  adminNote: string;
+}
+
 export class CreateRequestMessageDto {
   @IsString()
   @MinLength(1)

@@ -233,7 +233,8 @@ export function QuoteClient({ code }: { code: string }) {
   return (
     <div className="mx-auto max-w-lg p-4 pb-24">
       <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">خلاصه خرید شما</h1>
+        <p className="text-sm font-medium tracking-[0.18em] text-slate-500">HMray Expo</p>
+        <h1 className="mt-2 text-2xl font-bold text-slate-900">خلاصه خرید شما</h1>
         <button
           type="button"
           onClick={() => void navigator.clipboard?.writeText(quote.code)}
@@ -242,6 +243,28 @@ export function QuoteClient({ code }: { code: string }) {
         >
           {quote.code}
         </button>
+        <div className="mt-3">
+          <span
+            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${
+              quote.isExpired || quote.status === "EXPIRED"
+                ? "border-rose-200 bg-rose-50 text-rose-800"
+                : quote.isRejected || quote.status === "REJECTED"
+                  ? "border-rose-200 bg-rose-50 text-rose-800"
+                  : quote.status === "ACCEPTED"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-amber-200 bg-amber-50 text-amber-900"
+            }`}
+          >
+            وضعیت:{" "}
+            {quote.isExpired || quote.status === "EXPIRED"
+              ? "منقضی‌شده"
+              : quote.isRejected || quote.status === "REJECTED"
+                ? "ردشده"
+                : quote.status === "ACCEPTED"
+                  ? "تأییدشده — در انتظار پرداخت"
+                  : "در انتظار تأیید شما"}
+          </span>
+        </div>
       </div>
 
       <div className="space-y-4">

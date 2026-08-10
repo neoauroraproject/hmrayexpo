@@ -413,6 +413,7 @@ export class RequestsService {
           originalUrl: true,
           images: true,
           userNote: true,
+          adminNote: true,
           status: true,
         },
       },
@@ -729,6 +730,25 @@ export class RequestsService {
         status: dto.status ?? RequestItemStatus.PRICED,
         ...(dto.adminNote !== undefined ? { adminNote: dto.adminNote } : {}),
       },
+    });
+  }
+
+  async updateItemAdminNote(requestId: string, itemId: string, adminNote: string) {
+    const request = await this.requireRequest(requestId);
+    const item = await this.prisma.requestItem.findFirst({
+      where: {
+        id: itemId,
+        requestId: request.id,
+        status: { not: RequestItemStatus.REMOVED },
+      },
+    });
+    if (!item) {
+      throw new NotFoundException(FA.REQUEST_ITEM_NOT_FOUND);
+    }
+
+    return this.prisma.requestItem.update({
+      where: { id: item.id },
+      data: { adminNote: adminNote.trim() || null },
     });
   }
 

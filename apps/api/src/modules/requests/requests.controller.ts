@@ -16,6 +16,7 @@ import {
   CreateRequestMessageDto,
   ListRequestsQueryDto,
   PriceRequestItemDto,
+  UpdateRequestItemAdminNoteDto,
   UpdateRequestStatusDto,
 } from "./dto/request.dto";
 
@@ -91,6 +92,27 @@ export class RequestsController {
       entityType: "RequestItem",
       entityId: item.id,
       newValue: { price: dto.price, currency: item.currency, status: item.status },
+      context,
+    });
+    return item;
+  }
+
+  @Patch(":id/items/:itemId/admin-note")
+  @Roles(AdminRole.ADMIN, AdminRole.SUPPORT, AdminRole.OPERATOR)
+  async updateItemAdminNote(
+    @Param("id") id: string,
+    @Param("itemId") itemId: string,
+    @Body() dto: UpdateRequestItemAdminNoteDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @RequestContext() context: ClientContext,
+  ) {
+    const item = await this.requests.updateItemAdminNote(id, itemId, dto.adminNote);
+    await this.audit.log({
+      actorAdminId: admin.id,
+      action: "request.item.adminNote",
+      entityType: "RequestItem",
+      entityId: item.id,
+      newValue: { adminNote: dto.adminNote },
       context,
     });
     return item;

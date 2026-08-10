@@ -82,10 +82,24 @@ export function OrderClient({ code }: { code: string }) {
   return (
     <div className="mx-auto max-w-lg p-4 pb-24">
       <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">پیگیری سفارش</h1>
+        <p className="text-sm font-medium tracking-[0.18em] text-slate-500">HMray Expo</p>
+        <h1 className="mt-2 text-2xl font-bold text-slate-900">پیگیری سفارش</h1>
         <p className="mt-1 text-sm text-slate-500 font-mono">{order.code}</p>
+        <div className="mt-3">
+          <span
+            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${
+              order.status === "CANCELLED"
+                ? "border-rose-200 bg-rose-50 text-rose-800"
+                : order.status === "DELIVERED"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-slate-200 bg-slate-50 text-slate-800"
+            }`}
+          >
+            وضعیت: {statusLabels[order.status] || order.status}
+          </span>
+        </div>
         {order.trackingCode && (
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-3 text-sm text-slate-600">
             کد پیگیری:{" "}
             <a
               href={`/t/${encodeURIComponent(order.trackingCode)}`}

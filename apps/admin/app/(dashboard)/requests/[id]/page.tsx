@@ -29,6 +29,7 @@ interface RequestItemRow {
   title?: string | null;
   originalUrl?: string | null;
   userNote?: string | null;
+  adminNote?: string | null;
   price?: string | number | null;
   currency?: string | null;
   images?: string[] | null;
@@ -93,7 +94,9 @@ export default function RequestWorkspacePage() {
   const [notFound, setNotFound] = useState(false);
   const [omrRate, setOmrRate] = useState(DEFAULT_OMR_RATE);
   const [itemPrices, setItemPrices] = useState<Record<string, string>>({});
+  const [adminNotes, setAdminNotes] = useState<Record<string, string>>({});
   const [savingPriceId, setSavingPriceId] = useState<string | null>(null);
+  const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
   const [refreshingPreviewId, setRefreshingPreviewId] = useState<string | null>(null);
   const [issuing, setIssuing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -122,10 +125,13 @@ export default function RequestWorkspacePage() {
       const data = await apiFetch<RequestWorkspace>(`/admin/requests/${id}`);
       setRequest(data);
       const prices: Record<string, string> = {};
+      const notesByItem: Record<string, string> = {};
       data.items?.forEach((item) => {
         prices[item.id] = formatPrice(item.price);
+        notesByItem[item.id] = item.adminNote ?? "";
       });
       setItemPrices(prices);
+      setAdminNotes(notesByItem);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "خطا در بارگذاری درخواست";
       if (/404|not found|یافت نشد/i.test(message)) {
@@ -160,6 +166,35 @@ export default function RequestWorkspacePage() {
       setActionError(err instanceof Error ? err.message : "خطا در ذخیره قیمت");
     } finally {
       setSavingPriceId(null);
+    }
+  };
+
+  const handleAdminNoteSave = async (itemId: string) => {
+    const next = (adminNotes[itemId] ?? "").trim();
+    const prev = (request?.items?.find((item) => item.id === itemId)?.adminNote ?? "").trim();
+    if (next === prev) return;
+
+    setSavingNoteId(itemId);
+    setActionError(null);
+    try {
+      await apiFetch(`/admin/requests/${id}/items/${itemId}/admin-note`, {
+        method: "PATCH",
+        body: JSON.stringify({ adminNote: next }),
+      });
+      setRequest((current) =>
+        current
+          ? {
+              ...current,
+              items: current.items?.map((item) =>
+                item.id === itemId ? { ...item, adminNote: next || null } : item,
+              ),
+            }
+          : current,
+      );
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "خطا در ذخیره توضیح ادمین");
+    } finally {
+      setSavingNoteId(null);
     }
   };
 
@@ -470,9 +505,26 @@ export default function RequestWorkspacePage() {
                         </div>
                         {item.userNote && (
                           <p className="text-sm text-slate-600 mt-2 bg-white p-2 rounded border border-slate-100">
+                            <span className="font-medium text-slate-800">توضیح مشتری: </span>
                             {item.userNote}
                           </p>
                         )}
+                        <div className="mt-2">
+                          <label className="mb-1 block text-xs text-slate-500">
+                            توضیح ادمین (نمایش به مشتری)
+                            {savingNoteId === item.id ? " …" : ""}
+                          </label>
+                          <textarea
+                            value={adminNotes[item.id] ?? ""}
+                            onChange={(e) =>
+                              setAdminNotes((prev) => ({ ...prev, [item.id]: e.target.value }))
+                            }
+                            onBlur={() => void handleAdminNoteSave(item.id)}
+                            rows={2}
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-slate-400"
+                            placeholder="مثلاً رنگ/سایز جایگزین، نکته موجودی…"
+                          />
+                        </div>
                         {(item.images?.length ?? 0) > 1 && (
                           <div className="flex gap-1 mt-2 flex-wrap">
                             {item.images!.slice(0, 6).map((src) => (
