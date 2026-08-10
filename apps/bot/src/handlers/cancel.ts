@@ -1,6 +1,6 @@
 import type { Bot } from "grammy";
 import * as L from "../copy.js";
-import { mainMenuKeyboard } from "../menus.js";
+import { collectingKeyboard, mainMenuKeyboard } from "../menus.js";
 import { initialSession, type BotContext } from "../types.js";
 
 /**
@@ -14,6 +14,13 @@ export function registerCancelHandler(bot: Bot<BotContext>): void {
 
     if (mode === "idle") {
       await ctx.reply(L.BACK_TO_MENU, { reply_markup: mainMenuKeyboard() });
+      return;
+    }
+
+    if (mode === "awaiting_item_note") {
+      ctx.session.mode = "collecting_request";
+      ctx.session.noteItemId = undefined;
+      await ctx.reply(L.CANCELLED_GENERIC, { reply_markup: collectingKeyboard() });
       return;
     }
 

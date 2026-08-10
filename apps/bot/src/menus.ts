@@ -83,6 +83,10 @@ export function itemDeleteInlineKeyboard(
   return keyboard;
 }
 
+export function itemNoteInlineKeyboard(itemId: string): InlineKeyboard {
+  return new InlineKeyboard().text(L.BTN_ADD_ITEM_NOTE, `item:note:${itemId}`);
+}
+
 export function continueDraftInlineKeyboard(requestId: string): InlineKeyboard {
   return new InlineKeyboard().text("ادامه این درخواست", `req:continue:${requestId}`);
 }

@@ -20,6 +20,7 @@ interface TimelineEvent {
 
 interface OrderData {
   code: string;
+  trackingCode?: string;
   status: string;
   inspectionType: string;
   purchaseMode: string;
@@ -83,6 +84,17 @@ export function OrderClient({ code }: { code: string }) {
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold text-slate-900">پیگیری سفارش</h1>
         <p className="mt-1 text-sm text-slate-500 font-mono">{order.code}</p>
+        {order.trackingCode && (
+          <p className="mt-2 text-sm text-slate-600">
+            کد پیگیری:{" "}
+            <a
+              href={`/t/${encodeURIComponent(order.trackingCode)}`}
+              className="font-mono font-medium text-slate-900 underline-offset-2 hover:underline"
+            >
+              {order.trackingCode}
+            </a>
+          </p>
+        )}
       </div>
 
       <div className="mb-8 rounded-2xl bg-white p-5 shadow-sm border border-slate-200">

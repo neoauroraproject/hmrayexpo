@@ -1,11 +1,11 @@
 import type { Bot } from "grammy";
 import type { ApiClient } from "../api-client.js";
 import * as L from "../copy.js";
-import { orderStatusLabel } from "../format.js";
+import { orderStatusLabel, requestStatusLabel } from "../format.js";
 import { matchMenu } from "../match-menu.js";
 import { cancelOnlyKeyboard, mainMenuKeyboard } from "../menus.js";
 import type { BotContext } from "../types.js";
-import type { OrderStatus } from "@hmray/types";
+import type { OrderStatus, RequestStatus } from "@hmray/types";
 import { isBusy, sayBusy } from "./guards.js";
 
 export function registerTrackOrderHandlers(bot: Bot<BotContext>, api: ApiClient): void {
@@ -23,14 +23,21 @@ export function registerTrackOrderHandlers(bot: Bot<BotContext>, api: ApiClient)
     async (ctx) => {
       const code = ctx.message.text.trim();
       try {
-        const order = await api.getPublicOrder(code);
+        const track = await api.getPublicTrack(code);
         ctx.session.mode = "idle";
         await ctx.reply(
-          L.orderStatusMessage({
-            code: order.code,
-            statusLabel: orderStatusLabel(order.status as OrderStatus),
-            totalTomanLabel: order.totalTomanLabel,
-            itemCount: order.items.length,
+          L.trackSummary({
+            trackingCode: track.trackingCode,
+            requestStatusLabel: requestStatusLabel(
+              track.request.status as RequestStatus,
+              track.request.submittedAt,
+            ),
+            itemCount: track.request.items.length,
+            orderCode: track.order?.code ?? null,
+            orderStatusLabel: track.order
+              ? orderStatusLabel(track.order.status as OrderStatus)
+              : null,
+            trackingUrl: track.trackingUrl ?? null,
           }),
           { reply_markup: mainMenuKeyboard() },
         );

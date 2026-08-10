@@ -78,6 +78,52 @@ export interface BotRequest {
   createdAt: string;
   items: BotRequestItem[];
   quotes?: BotRequestQuoteSummary[];
+  trackingCode?: string;
+  trackingUrl?: string;
+}
+
+export interface PublicTrackDto {
+  trackingCode: string;
+  customerCode: string | null;
+  trackingUrl?: string;
+  request: {
+    id: string;
+    code: string;
+    type: string;
+    status: string;
+    submittedAt: string | null;
+    storeName: string | null;
+    items: Array<{
+      displayIndex: number;
+      productCode: string;
+      originalUrl: string | null;
+      images: string[];
+      userNote: string | null;
+      status: string;
+    }>;
+  };
+  quotes: Array<{
+    code: string;
+    status: string;
+    productsTotalLabel: string;
+    url: string;
+    expiresAt: string;
+    acceptedAt: string | null;
+  }>;
+  order: null | {
+    code: string;
+    status: string;
+    totalTomanLabel: string;
+    deliveredAt: string | null;
+    timeline: Array<{ toStatus: string; createdAt: string }>;
+    shipment?: unknown;
+  };
+  payments: Array<{
+    code: string;
+    status: string;
+    amountLabel: string;
+    createdAt: string;
+  }>;
 }
 
 export interface Paginated<T> {
@@ -237,6 +283,10 @@ export class ApiClient {
     return this.request(`/public/orders/${encodeURIComponent(code)}`);
   }
 
+  getPublicTrack(code: string): Promise<PublicTrackDto> {
+    return this.request(`/public/track/${encodeURIComponent(code)}`);
+  }
+
   // ─── Requests ───────────────────────────────────────────────
   createRequest(payload: CreateBotRequestPayload): Promise<BotRequest> {
     return this.request("/bot/requests", { method: "POST", json: payload });
@@ -255,6 +305,17 @@ export class ApiClient {
       method: "POST",
       json: payload,
     });
+  }
+
+  updateRequestItemNote(
+    requestId: string,
+    itemId: string,
+    payload: { telegramUserId: string; userNote: string },
+  ): Promise<BotRequestItem> {
+    return this.request(
+      `/bot/requests/${encodeURIComponent(requestId)}/items/${encodeURIComponent(itemId)}`,
+      { method: "PATCH", json: payload },
+    );
   }
 
   removeRequestItem(

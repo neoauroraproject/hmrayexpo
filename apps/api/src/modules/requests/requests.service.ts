@@ -9,11 +9,12 @@ import {
   NotificationEvent,
   Prisma,
   PurchaseRequest,
+  QuoteStatus,
   RequestItemStatus,
   RequestStatus,
   RequestType,
 } from "@hmray/database";
-import { generateProductCode, generateRequestId } from "@hmray/shared";
+import { formatToman, generateProductCode, generateRequestId } from "@hmray/shared";
 import { PrismaService } from "../../common/prisma/prisma.service";
 import { FA } from "../../common/errors/messages";
 import { uniqueCode } from "../../common/utils/identifiers";
@@ -100,6 +101,34 @@ export class RequestsService {
     });
   }
 
+  async updateItemNote(
+    requestId: string,
+    itemId: string,
+    telegramUserId: string,
+    userNote: string,
+  ) {
+    const user = await this.customers.requireByTelegramId(telegramUserId);
+    const request = await this.requireOwnedRequest(requestId, user.id);
+    this.assertEditable(request);
+
+    const item = await this.prisma.requestItem.findFirst({
+      where: {
+        id: itemId,
+        requestId: request.id,
+        status: { not: RequestItemStatus.REMOVED },
+      },
+    });
+    if (!item) {
+      throw new NotFoundException(FA.REQUEST_ITEM_NOT_FOUND);
+    }
+
+    const updated = await this.prisma.requestItem.update({
+      where: { id: item.id },
+      data: { userNote: userNote.trim() },
+    });
+    return stripBigInt(updated);
+  }
+
   /** Re-fetch OG/Twitter image for an existing item that has originalUrl but no image. */
   async refreshItemPreview(requestId: string, itemId: string) {
     const request = await this.requireRequest(requestId);
@@ -184,7 +213,11 @@ export class RequestsService {
       },
     });
 
-    return updated;
+    return {
+      ...updated,
+      trackingCode: updated.code,
+      trackingUrl: this.config.trackingUrl(updated.code),
+    };
   }
 
   async listForBot(telegramUserId: string, page?: number, pageSize?: number) {
@@ -224,6 +257,146 @@ export class RequestsService {
       total,
       args,
     );
+  }
+
+  /** Customer-facing lifetime timeline by RQ- or HM-YYYY- order code. */
+  async getPublicTrack(code: string) {
+    const normalized = code.trim();
+    if (!normalized) {
+      throw new NotFoundException(FA.REQUEST_NOT_FOUND);
+    }
+
+    const trackInclude = {
+      user: { select: { customerCode: true } },
+      items: {
+        where: { status: { not: RequestItemStatus.REMOVED } },
+        orderBy: { displayIndex: "asc" as const },
+        select: {
+          displayIndex: true,
+          productCode: true,
+          originalUrl: true,
+          images: true,
+          userNote: true,
+          status: true,
+        },
+      },
+      quotes: {
+        where: { status: { not: QuoteStatus.DRAFT } },
+        orderBy: { createdAt: "desc" as const },
+        select: {
+          code: true,
+          status: true,
+          productsTotal: true,
+          publicToken: true,
+          expiresAt: true,
+          acceptedAt: true,
+        },
+      },
+      orders: {
+        orderBy: { createdAt: "desc" as const },
+        take: 1,
+        include: {
+          statusHistory: {
+            orderBy: { createdAt: "asc" as const },
+            select: { toStatus: true, createdAt: true },
+          },
+          shipment: {
+            select: {
+              status: true,
+              shippedAt: true,
+              deliveredAt: true,
+              trackingEvents: {
+                orderBy: { occurredAt: "desc" as const },
+                select: { leg: true, trackingNumber: true, occurredAt: true },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    let request = await this.prisma.purchaseRequest.findFirst({
+      where: { code: { equals: normalized, mode: Prisma.QueryMode.insensitive } },
+      include: trackInclude,
+    });
+
+    if (!request) {
+      const orderMatch = await this.prisma.order.findFirst({
+        where: { code: { equals: normalized, mode: Prisma.QueryMode.insensitive } },
+        select: { requestId: true },
+      });
+      if (orderMatch) {
+        request = await this.prisma.purchaseRequest.findUnique({
+          where: { id: orderMatch.requestId },
+          include: trackInclude,
+        });
+      }
+    }
+
+    if (!request) {
+      throw new NotFoundException(FA.REQUEST_NOT_FOUND);
+    }
+
+    const order = request.orders[0] ?? null;
+
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        OR: [
+          ...(order ? [{ orderId: order.id }] : []),
+          { quote: { requestId: request.id } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        code: true,
+        status: true,
+        amount: true,
+        currency: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      trackingCode: request.code,
+      customerCode: request.user.customerCode ?? null,
+      request: {
+        id: request.id,
+        code: request.code,
+        type: request.type,
+        status: request.status,
+        submittedAt: request.submittedAt,
+        storeName: request.storeName,
+        items: request.items,
+      },
+      quotes: request.quotes.map((quote) => ({
+        code: quote.code,
+        status: quote.status,
+        productsTotalLabel: formatToman(Number(quote.productsTotal)),
+        url: this.config.quoteUrl(quote.publicToken),
+        expiresAt: quote.expiresAt,
+        acceptedAt: quote.acceptedAt,
+      })),
+      order: order
+        ? {
+            code: order.code,
+            status: order.status,
+            totalTomanLabel: formatToman(Number(order.totalToman)),
+            deliveredAt: order.deliveredAt,
+            timeline: order.statusHistory,
+            shipment: order.shipment ?? undefined,
+          }
+        : null,
+      payments: payments.map((payment) => ({
+        code: payment.code,
+        status: payment.status,
+        amountLabel:
+          payment.currency === "TOMAN"
+            ? formatToman(Number(payment.amount))
+            : `${new Intl.NumberFormat("fa-IR").format(Number(payment.amount))} ${payment.currency}`,
+        createdAt: payment.createdAt,
+      })),
+      trackingUrl: this.config.trackingUrl(request.code),
+    };
   }
 
   // ─── Admin ──────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 /**
  * Customer-facing Persian copy for the Telegram bot.
- * Tone: warm, clear, emoji-friendly. Never show raw Telegram user ids —
+ * Tone: warm, clear, premium-short. Never show raw Telegram user ids —
  * only `customerCode` (e.g. HM-12345). Prices to customers are always Toman.
  */
 
@@ -15,152 +15,147 @@ export const BTN_SUPPORT = "💬 پشتیبانی";
 
 // ─── Shared control buttons ──────────────────────────────────────
 export const BTN_CANCEL = "❌ انصراف";
-export const BTN_FINALIZE = "✅ ثبت نهایی درخواست";
+export const BTN_FINALIZE = "✅ ثبت نهایی";
 export const BTN_DELETE_ITEM = "🗑 حذف یک محصول";
 export const BTN_BACK = "🏠 بازگشت به منو";
 export const BTN_ADD_ADDRESS = "➕ افزودن آدرس جدید";
 export const BTN_SEND_RECEIPT = "🧾 ارسال رسید پرداخت";
 export const BTN_SKIP = "-";
+export const BTN_ADD_ITEM_NOTE = "✏️ افزودن توضیح";
 
 // ─── Request-type inline buttons ────────────────────────────────
-export const BTN_TEMU = "🧡 خرید از Temu";
-export const BTN_EXTERNAL = "🏪 خرید از سایر فروشگاه‌ها";
+export const BTN_TEMU = "🧡 Temu";
+export const BTN_EXTERNAL = "🏪 فروشگاه‌های دیگر";
 
 // ─── Generic ──────────────────────────────────────────────────
 export const ERROR_GENERIC =
-  "😔 یه مشکلی پیش اومد.\nلطفاً چند لحظه دیگه دوباره امتحان کن. اگه ادامه داشت، از «💬 پشتیبانی» پیام بده.";
+  "😔 مشکلی پیش آمد.\nلطفاً کمی بعد دوباره امتحان کنید.";
 export const ERROR_NETWORK =
-  "📡 الان به سرور وصل نیستیم.\nچند ثانیه صبر کن و دوباره تست کن.";
-export const ERROR_NOT_FOUND = "🔎 چیزی که دنبالش بودیم پیدا نشد.";
-export const CANCELLED_GENERIC = "👌 باشه، لغو شد.\nهر وقت خواستی از منو دوباره شروع کن.";
+  "📡 اتصال برقرار نیست.\nچند ثانیه صبر کنید و دوباره بفرستید.";
+export const ERROR_NOT_FOUND = "🔎 موردی پیدا نشد.";
+export const CANCELLED_GENERIC = "👌 لغو شد.\nهر وقت خواستید از منو شروع کنید.";
 export const BACK_TO_MENU = "🏠 برگشتیم به منوی اصلی.";
 export const UNKNOWN_COMMAND = [
   "🤔 متوجه نشدم.",
-  "",
-  "از دکمه‌های پایین صفحه استفاده کن.",
-  "اگه گیر کردی، /start رو بزن تا منو دوباره بیاد.",
+  "از دکمه‌های پایین صفحه استفاده کنید.",
 ].join("\n");
 
 export function welcome(name: string, customerCode: string): string {
   return [
-    `سلام ${name}! 👋`,
+    `سلام ${name} 👋`,
     "",
-    "به ربات خرید بین‌المللی HMRAY خوش اومدی ✨",
-    `🆔 کد مشتری تو: ${customerCode}`,
+    "به HMRAY خوش آمدید.",
+    `کد مشتری: ${customerCode}`,
     "",
-    "از منوی پایین می‌تونی:",
-    "🛒 درخواست خرید ثبت کنی",
-    "📋 وضعیت درخواست‌ها رو ببینی",
-    "💳 پرداخت و ارسال رسید انجام بدی",
-    "📦 سفارشت رو پیگیری کنی",
-    "",
-    "هر سوالی داشتی، «💬 پشتیبانی» اینجاست.",
+    "از منوی پایین درخواست ثبت کنید، پرداخت کنید یا سفارشتان را پیگیری کنید.",
   ].join("\n");
 }
 
 export function welcomeBack(name: string): string {
-  return `سلام ${name}، خوش برگشتی! 🌟\nاز منوی پایین ادامه بده.`;
+  return `سلام ${name}، خوش برگشتید ✨\nاز منو ادامه دهید.`;
 }
 
 // ─── Required channels gate ──────────────────────────────────────
 export const CHANNEL_GATE_MESSAGE = [
-  "🔐 برای استفاده از ربات، اول عضو کانال‌های زیر شو.",
+  "🔐 برای استفاده از ربات، ابتدا عضو کانال‌های زیر شوید.",
   "",
-  "بعد از عضویت، دکمه «✅ عضو شدم» رو بزن تا ادامه‌ش بدیم.",
+  "سپس «✅ عضو شدم» را بزنید.",
 ].join("\n");
 
 export const CHANNEL_GATE_STILL_MISSING = [
-  "😕 هنوز عضو همه کانال‌ها نشدی.",
-  "عضو شو و دوباره «✅ عضو شدم» رو بزن.",
+  "هنوز عضو همه کانال‌ها نشده‌اید.",
+  "عضو شوید و دوباره «✅ عضو شدم» را بزنید.",
 ].join("\n");
 
-export const CHANNEL_GATE_PASSED = "🎉 عالی! عضویتت تأیید شد. خوش اومدی.";
+export const CHANNEL_GATE_PASSED = "🎉 عضویت تأیید شد. خوش آمدید.";
 
 // ─── New request flow ────────────────────────────────────────────
 export const CHOOSE_REQUEST_TYPE = [
-  "🛍️ از کجا می‌خوای خرید کنی؟",
+  "🛍️ از کجا می‌خرید؟",
   "",
-  "یکی از گزینه‌های زیر رو انتخاب کن:",
+  "یکی از گزینه‌ها را انتخاب کنید:",
 ].join("\n");
 
 export const ASK_STORE_NAME = [
-  "🏪 اسم فروشگاه چیه؟",
+  "🏪 نام فروشگاه چیست؟",
   "",
-  "اگه نمی‌دونی یا مهم نیست، فقط «-» رو بفرست.",
+  "اگر مهم نیست، «-» بفرستید.",
 ].join("\n");
 
 export const REQUEST_OPENED_FIRST_ITEM = [
-  "🎯 عالیه! درخواست باز شد.",
+  "✨ درخواست آماده است",
   "",
-  "حالا لینک محصول یا عکسش رو بفرست.",
-  "🔢 هر چند تا که خواستی پشت‌سر‌هم بفرست — لازم نیست صبر کنی.",
+  "لینک یا عکس محصول را بفرستید.",
+  "می‌توانید توضیح هم کنارش بنویسید؛ مثلاً: رنگ آبی، سایز L",
   "",
-  "وقتی تموم شد، دکمه «✅ ثبت نهایی درخواست» رو بزن.",
-].join("\n");
-
-export const FIRST_ITEM_ACK = [
-  "✅ آیتم اضافه شد!",
-  "",
-  "می‌تونی لینک یا عکس بعدی رو بفرستی.",
-  "وقتی لیست کامل شد، «✅ ثبت نهایی درخواست» رو بزن.",
+  "هر تعداد کالا که خواستید. در پایان «✅ ثبت نهایی» را بزنید.",
 ].join("\n");
 
 export function itemAdded(displayIndex: number): string {
   return [
-    `✅ کالای #${String(displayIndex).padStart(2, "0")} اضافه شد.`,
+    `✅ کالا ثبت شد (#${String(displayIndex).padStart(2, "0")})`,
     "",
-    "لینک/عکس بعدی رو بفرست، یا «✅ ثبت نهایی درخواست» رو بزن.",
+    "✏️ توضیح اضافه کنید یا کالای بعدی را بفرستید.",
+    "وقتی تمام شد → ✅ ثبت نهایی",
   ].join("\n");
 }
 
+/** @deprecated use itemAdded — kept for any leftover imports */
+export const FIRST_ITEM_ACK = itemAdded(1);
+
 export const ITEM_SOURCE_NEEDED = [
-  "🔗 برای هر کالا یه لینک یا عکس لازم داریم.",
+  "🔗 برای هر کالا لینک یا عکس لازم است.",
   "",
-  "اگه توضیحی داری (رنگ، سایز، تعداد)، همراه لینک بنویس یا به‌صورت کپشن روی عکس بفرست.",
+  "توضیح را می‌توانید کنار لینک بنویسید یا به صورت کپشن روی عکس بفرستید.",
 ].join("\n");
 
+export const ASK_ITEM_NOTE = "✏️ توضیح این کالا را بنویسید.\nمثلاً: رنگ آبی، سایز L";
+
+export const ITEM_NOTE_SAVED = "✅ توضیح ذخیره شد.";
+
 export const NO_OPEN_REQUEST =
-  "📭 درخواست بازی نداری.\nاز «🛒 ثبت درخواست خرید» شروع کن.";
+  "📭 درخواست بازی ندارید.\nاز «🛒 ثبت درخواست خرید» شروع کنید.";
 
-export const NO_ITEMS_TO_DELETE = "🗑 این درخواست هنوز کالایی نداره.";
+export const NO_ITEMS_TO_DELETE = "🗑 این درخواست هنوز کالایی ندارد.";
 
-export const CHOOSE_ITEM_TO_DELETE = "کدوم کالا رو حذف کنم؟ 👇";
+export const CHOOSE_ITEM_TO_DELETE = "کدام کالا حذف شود؟ 👇";
 
 export function itemDeleted(displayIndex: number): string {
   return `🗑 کالای #${String(displayIndex).padStart(2, "0")} حذف شد.`;
 }
 
 export const REQUEST_EMPTY_ON_FINALIZE = [
-  "📭 هنوز کالایی توی این درخواست نیست.",
-  "اول یه لینک یا عکس بفرست، بعد ثبت نهایی رو بزن.",
+  "📭 هنوز کالایی در این درخواست نیست.",
+  "اول لینک یا عکس بفرستید، بعد ثبت نهایی را بزنید.",
 ].join("\n");
 
-export function requestFinalized(code: string): string {
-  return [
-    "🎉 درخواستت ثبت شد!",
-    `🆔 کد پیگیری: ${code}`,
+export function requestFinalized(code: string, trackingUrl?: string): string {
+  const lines = [
+    "🎉 ثبت شد",
+    `کد پیگیری: ${code}`,
     "",
-    "کارشناس ما لینک‌ها/عکس‌ها رو بررسی می‌کنه و قیمت هر کالا رو به تومان ایران برات اعلام می‌کنه.",
-    "",
-    "⏳ معمولاً تا چند روز کاری طول می‌کشه.",
-    "💰 فعلاً هیچ مبلغی پرداخت نکن — اول پیش‌فاکتور می‌اد.",
-    "",
-    "وضعیت رو از «📋 درخواست‌های من» هم می‌تونی ببینی.",
-  ].join("\n");
+    "از این لحظه تا تحویل با همین کد پیگیری کنید:",
+  ];
+  if (trackingUrl) {
+    lines.push(trackingUrl);
+  }
+  lines.push("");
+  lines.push("قیمت‌ها به تومان اعلام می‌شوند. فعلاً پرداختی لازم نیست.");
+  return lines.join("\n");
 }
 
 export const REQUEST_CANCELLED_DRAFT = [
-  "👌 باشه، فعلاً کنسل کردیم.",
+  "👌 کنسل شد.",
   "",
-  "پیش‌نویس دست‌نخورده موند؛ هر وقت خواستی از «📋 درخواست‌های من» ادامه‌اش بده.",
+  "پیش‌نویس مانده؛ از «📋 درخواست‌های من» می‌توانید ادامه دهید.",
 ].join("\n");
 
 // ─── My requests ──────────────────────────────────────────────────
 export const MY_REQUESTS_EMPTY = [
-  "📋 هنوز درخواستی ثبت نکردی.",
-  "از «🛒 ثبت درخواست خرید» شروع کن.",
+  "📋 هنوز درخواستی ثبت نکرده‌اید.",
+  "از «🛒 ثبت درخواست خرید» شروع کنید.",
 ].join("\n");
-export const MY_REQUESTS_TITLE = "📋 درخواست‌های تو:";
+export const MY_REQUESTS_TITLE = "📋 درخواست‌های شما:";
 
 export function requestSummary(params: {
   code: string;
@@ -180,17 +175,17 @@ export function requestSummary(params: {
   return lines.join("\n");
 }
 
-export const CONTINUE_DRAFT_HINT = "برای ادامه این درخواست، دکمه زیر رو بزن 👇";
+export const CONTINUE_DRAFT_HINT = "برای ادامه، دکمه زیر را بزنید 👇";
 
 // ─── Track order ─────────────────────────────────────────────────
 export const ASK_ORDER_CODE = [
-  "📦 کد سفارشت رو بفرست.",
-  "مثال: HM-2026-01234",
+  "📦 کد پیگیری یا کد سفارش را بفرستید.",
+  "مثال: RQ-12345 یا HM-2026-01234",
 ].join("\n");
 
 export const ORDER_NOT_FOUND = [
-  "🔎 سفارشی با این کد پیدا نشد.",
-  "کد رو یک‌بار دیگه چک کن و بفرست.",
+  "🔎 با این کد چیزی پیدا نشد.",
+  "کد را یک‌بار دیگر بررسی کنید و بفرستید.",
 ].join("\n");
 
 export function orderStatusMessage(params: {
@@ -207,12 +202,35 @@ export function orderStatusMessage(params: {
   ].join("\n");
 }
 
+export function trackSummary(params: {
+  trackingCode: string;
+  requestStatusLabel: string;
+  itemCount: number;
+  orderCode?: string | null;
+  orderStatusLabel?: string | null;
+  trackingUrl?: string | null;
+}): string {
+  const lines = [
+    `🔖 کد پیگیری: ${params.trackingCode}`,
+    `📊 وضعیت درخواست: ${params.requestStatusLabel}`,
+    `🧺 تعداد کالا: ${params.itemCount}`,
+  ];
+  if (params.orderCode && params.orderStatusLabel) {
+    lines.push(`📦 سفارش ${params.orderCode}: ${params.orderStatusLabel}`);
+  }
+  if (params.trackingUrl) {
+    lines.push("");
+    lines.push(`🌐 پیگیری آنلاین:\n${params.trackingUrl}`);
+  }
+  return lines.join("\n");
+}
+
 // ─── Addresses ────────────────────────────────────────────────────
 export const ADDRESSES_EMPTY = [
-  "📍 هنوز آدرسی ثبت نکردی.",
-  "با «➕ افزودن آدرس جدید» اولین آدرست رو ذخیره کن.",
+  "📍 هنوز آدرسی ثبت نکرده‌اید.",
+  "با «➕ افزودن آدرس جدید» شروع کنید.",
 ].join("\n");
-export const ADDRESSES_TITLE = "📍 آدرس‌های تو:";
+export const ADDRESSES_TITLE = "📍 آدرس‌های شما:";
 
 export function addressSummary(a: {
   recipientName: string;
@@ -233,34 +251,32 @@ export function addressSummary(a: {
   return lines.join("\n");
 }
 
-export const ADDRESS_ASK_RECIPIENT = "👤 اسم گیرنده رو بفرست.";
-export const ADDRESS_ASK_MOBILE = "📱 شماره موبایل گیرنده رو بفرست.";
-export const ADDRESS_ASK_PROVINCE = "🗺 استان چیه؟";
-export const ADDRESS_ASK_CITY = "🏙 شهر چیه؟";
-export const ADDRESS_ASK_FULL = "🏠 آدرس کامل (خیابان، پلاک، واحد) رو بفرست.";
-export const ADDRESS_ASK_POSTAL_CODE = "📮 کد پستی چیه؟";
-export const ADDRESS_SAVED = "✅ آدرس با موفقیت ذخیره شد.";
+export const ADDRESS_ASK_RECIPIENT = "👤 نام گیرنده را بفرستید.";
+export const ADDRESS_ASK_MOBILE = "📱 شماره موبایل گیرنده را بفرستید.";
+export const ADDRESS_ASK_PROVINCE = "🗺 استان چیست؟";
+export const ADDRESS_ASK_CITY = "🏙 شهر چیست؟";
+export const ADDRESS_ASK_FULL = "🏠 آدرس کامل (خیابان، پلاک، واحد) را بفرستید.";
+export const ADDRESS_ASK_POSTAL_CODE = "📮 کد پستی چیست؟";
+export const ADDRESS_SAVED = "✅ آدرس ذخیره شد.";
 export const ADDRESS_INVALID_MOBILE =
-  "⚠️ شماره موبایل باید حداقل ۸ رقم باشه. دوباره بفرست.";
+  "⚠️ شماره موبایل باید حداقل ۸ رقم باشد. دوباره بفرستید.";
 export const ADDRESS_INVALID_POSTAL =
-  "⚠️ کد پستی باید حداقل ۵ رقم باشه. دوباره بفرست.";
+  "⚠️ کد پستی باید حداقل ۵ رقم باشد. دوباره بفرستید.";
 export const ADDRESS_INVALID_TOO_SHORT =
-  "⚠️ این مقدار خیلی کوتاهه. کامل‌تر بفرست.";
+  "⚠️ این مقدار خیلی کوتاه است. کامل‌تر بفرستید.";
 
 // ─── Payments ─────────────────────────────────────────────────────
 export const PAYMENTS_MENU_INTRO = [
-  "💳 بخش پرداخت",
+  "💳 پرداخت",
   "",
-  "۱) اول پیش‌فاکتور رو از لینک/دکمه‌ای که برات فرستادیم تأیید کن.",
-  "۲) مبلغ اعلام‌شده به تومان ایران رو پرداخت کن.",
-  "۳) کد پرداخت (مثل P-12345) و بعد عکس رسید رو اینجا بفرست.",
-  "",
-  "اگه پیش‌فاکتور آماده‌ای داری، از دکمه‌های زیر استفاده کن.",
+  "۱) پیش‌فاکتور را تأیید کنید.",
+  "۲) مبلغ اعلام‌شده به تومان را پرداخت کنید.",
+  "۳) کد پرداخت و عکس رسید را اینجا بفرستید.",
 ].join("\n");
 
 export const PENDING_QUOTES_TITLE = "💰 پیش‌فاکتورهای در انتظار پرداخت:";
 export const PENDING_QUOTES_EMPTY =
-  "📭 الان پیش‌فاکتور بازی برای پرداخت نداری.";
+  "📭 الان پیش‌فاکتور بازی برای پرداخت ندارید.";
 
 export function quoteLine(params: { code: string; statusLabel: string; url?: string }): string {
   const lines = [`📄 ${params.code} — ${params.statusLabel}`];
@@ -269,47 +285,46 @@ export function quoteLine(params: { code: string; statusLabel: string; url?: str
 }
 
 export const ASK_PAYMENT_ID = [
-  "🆔 کد پرداخت رو بفرست.",
+  "🆔 کد پرداخت را بفرستید.",
   "مثال: P-12345",
 ].join("\n");
 export const ASK_PAYMENT_RECEIPT =
-  "📸 حالا عکس واضح رسید پرداخت رو بفرست.";
+  "📸 عکس واضح رسید پرداخت را بفرستید.";
 export const PAYMENT_ID_INVALID = [
-  "⚠️ این کد درست به نظر نمی‌رسه.",
-  "با فرمت P-12345 دوباره بفرست.",
+  "⚠️ این کد درست به نظر نمی‌رسد.",
+  "با فرمت P-12345 دوباره بفرستید.",
 ].join("\n");
 export const RECEIPT_UPLOADED = [
-  "✅ رسید دریافت شد!",
-  "",
-  "تیم مالی بررسیش می‌کنه و نتیجه رو همینجا بهت اعلام می‌کنیم. 🙏",
+  "✅ رسید دریافت شد.",
+  "نتیجه را همینجا اعلام می‌کنیم.",
 ].join("\n");
 
 // ─── Rules ────────────────────────────────────────────────────────
 export const RULES_TEXT = [
-  "📜 قوانین و هزینه‌ها — خلاصه شفاف",
+  "📜 قوانین و هزینه‌ها",
   "",
-  "🔍 قیمت هر کالا جداگانه بررسی و به تومان ایران اعلام می‌شه (معمولاً تا چند روز کاری).",
-  "🚚 هزینه ارسال جدا از قیمت کالا است و توی پیش‌فاکتور می‌اد.",
-  "✅ تا وقتی پیش‌فاکتور رو تأیید نکنی، هیچ پرداختی انجام نمی‌شه.",
-  "💳 پرداخت فقط بعد از تأیید پیش‌فاکتور و با روش‌های اعلام‌شده.",
-  "📦 بعد از تأیید پرداخت، سفارشت ثبت و مرحله‌به‌مرحله پیگیری می‌شه.",
+  "🔍 قیمت هر کالا جداگانه به تومان اعلام می‌شود.",
+  "🚚 هزینه ارسال جدا از قیمت کالا است.",
+  "✅ تا تأیید پیش‌فاکتور، پرداختی انجام نمی‌شود.",
+  "💳 بعد از تأیید، با روش‌های اعلام‌شده پرداخت کنید.",
+  "📦 پس از تأیید پرداخت، سفارش پیگیری می‌شود.",
   "",
-  "سوال داشتی؟ «💬 پشتیبانی» همیشه در دسترسه.",
+  "سوال؟ از «💬 پشتیبانی» پیام بدهید.",
 ].join("\n");
 
 // ─── Support ──────────────────────────────────────────────────────
-export const SUPPORT_ASK_HAS_ORDER = "💬 پیامت درباره یه سفارش خاصه؟";
+export const SUPPORT_ASK_HAS_ORDER = "💬 پیام شما درباره سفارش خاصی است؟";
 export const SUPPORT_ASK_ORDER_CODE = [
-  "📦 کد سفارش رو بفرست.",
-  "مثال: HM-2026-01234",
+  "📦 کد پیگیری یا سفارش را بفرستید.",
+  "مثال: RQ-12345 یا HM-2026-01234",
 ].join("\n");
 export const SUPPORT_ASK_BODY = [
-  "✍️ بگو چه کمکی از دستمون برمیاد؟",
-  "هرچقدر دقیق‌تر بنویسی، زودتر کمکت می‌کنیم.",
+  "✍️ چه کمکی از دستمان برمی‌آید؟",
+  "هرچقدر دقیق‌تر بنویسید، زودتر کمک می‌کنیم.",
 ].join("\n");
 export const SUPPORT_TICKET_CREATED = [
-  "✅ پیامت ثبت شد.",
-  "به‌زودی جواب می‌دیم. ممنون از صبرت 🙏",
+  "✅ پیام شما ثبت شد.",
+  "به‌زودی پاسخ می‌دهیم.",
 ].join("\n");
 export const SUPPORT_YES = "✅ بله";
 export const SUPPORT_NO = "❌ خیر";

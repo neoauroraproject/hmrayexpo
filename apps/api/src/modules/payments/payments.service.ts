@@ -261,7 +261,10 @@ export class PaymentsService {
     }
 
     const quote = payment.quoteId
-      ? await this.prisma.quote.findUnique({ where: { id: payment.quoteId } })
+      ? await this.prisma.quote.findUnique({
+          where: { id: payment.quoteId },
+          include: { request: { select: { code: true } } },
+        })
       : null;
     const existingOrder = payment.orderId
       ? await this.prisma.order.findUnique({ where: { id: payment.orderId } })
@@ -364,6 +367,7 @@ export class PaymentsService {
         paymentId: result.payment.id,
         paymentCode: result.payment.code,
         orderCode: result.order?.code ?? null,
+        requestCode: quote?.request?.code ?? null,
       },
     });
 

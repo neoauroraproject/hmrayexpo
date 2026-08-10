@@ -1,12 +1,13 @@
 import { Module } from "@nestjs/common";
 import { CustomersModule } from "../customers/customers.module";
 import { BotRequestsController } from "./bot-requests.controller";
+import { PublicTrackController } from "./public-track.controller";
 import { RequestsController } from "./requests.controller";
 import { RequestsService } from "./requests.service";
 
 @Module({
   imports: [CustomersModule],
-  controllers: [RequestsController, BotRequestsController],
+  controllers: [RequestsController, BotRequestsController, PublicTrackController],
   providers: [RequestsService],
   exports: [RequestsService],
 })

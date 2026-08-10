@@ -8,6 +8,7 @@ import type { Context, SessionFlavor } from "grammy";
 export type BotMode =
   | "idle"
   | "collecting_request"
+  | "awaiting_item_note"
   | "awaiting_store_name"
   | "awaiting_order_code"
   | "awaiting_address_field"
@@ -41,6 +42,9 @@ export interface SessionData {
   openRequestCode?: string;
   openRequestType?: "TEMU" | "EXTERNAL_STORE";
   openRequestItemCount: number;
+
+  /** While `mode === "awaiting_item_note"`. */
+  noteItemId?: string;
 
   /** Address creation wizard. */
   addressDraft?: AddressDraft;

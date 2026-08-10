@@ -74,8 +74,13 @@ export class AppConfigService {
     return `${this.quotePublicBaseUrl.replace(/\/$/, "")}/q/${publicToken}`;
   }
 
+  /** Customer-facing RQ lifetime tracking page. */
+  trackingUrl(requestCode: string): string {
+    return `${this.quotePublicBaseUrl.replace(/\/$/, "")}/t/${requestCode}`;
+  }
+
   orderTrackingUrl(code: string): string {
-    return `${this.quotePublicBaseUrl.replace(/\/$/, "")}/orders/${code}`;
+    return `${this.quotePublicBaseUrl.replace(/\/$/, "")}/o/${code}`;
   }
 
   /** Shared secret the Telegram bot sends as `X-Bot-Secret`. */

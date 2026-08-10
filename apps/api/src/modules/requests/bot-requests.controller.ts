@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -15,6 +16,7 @@ import {
   BotActorBodyDto,
   BotActorQueryDto,
   CreateBotRequestDto,
+  UpdateRequestItemNoteDto,
 } from "./dto/request.dto";
 
 @Controller("bot/requests")
@@ -35,6 +37,15 @@ export class BotRequestsController {
   @Post(":id/items")
   addItem(@Param("id") id: string, @Body() dto: AddRequestItemDto) {
     return this.requests.addItem(id, dto);
+  }
+
+  @Patch(":id/items/:itemId")
+  updateItemNote(
+    @Param("id") id: string,
+    @Param("itemId") itemId: string,
+    @Body() dto: UpdateRequestItemNoteDto,
+  ) {
+    return this.requests.updateItemNote(id, itemId, dto.telegramUserId, dto.userNote);
   }
 
   @Delete(":id/items/:itemId")

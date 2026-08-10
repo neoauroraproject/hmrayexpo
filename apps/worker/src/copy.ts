@@ -120,9 +120,16 @@ export function paymentReceiptUploadedAdmin(payload: { paymentCode?: unknown; ur
   return lines.join("\n");
 }
 
-export function paymentConfirmedCustomer(payload: { orderCode?: unknown }): string {
+export function paymentConfirmedCustomer(payload: {
+  orderCode?: unknown;
+  requestCode?: unknown;
+}): string {
   const order = payload.orderCode ? ` ${payload.orderCode}` : "";
-  return `✅ پرداخت شما تأیید شد و سفارش${order} وارد مرحله خرید شد.`;
+  const lines = [`✅ پرداخت شما تأیید شد و سفارش${order} وارد مرحله خرید شد.`];
+  if (payload.requestCode) {
+    lines.push(`کد پیگیری: ${payload.requestCode}`);
+  }
+  return lines.join("\n");
 }
 
 export function paymentRejectedCustomer(payload: { paymentCode?: unknown; reason?: unknown }): string {
@@ -153,10 +160,18 @@ export function newOrderAdmin(payload: {
   return lines.join("\n");
 }
 
-export function newOrderCustomer(payload: { orderCode?: unknown; totalLabel?: unknown }): string {
+export function newOrderCustomer(payload: {
+  orderCode?: unknown;
+  totalLabel?: unknown;
+  requestCode?: unknown;
+}): string {
   const order = payload.orderCode ? ` ${payload.orderCode}` : "";
   const total = payload.totalLabel ? ` به مبلغ ${payload.totalLabel}` : "";
-  return `🛒 سفارش شما${order}${total} ثبت شد و در حال پردازش است.`;
+  const lines = [`🛒 سفارش شما${order}${total} ثبت شد و در حال پردازش است.`];
+  if (payload.requestCode) {
+    lines.push(`کد پیگیری: ${payload.requestCode}`);
+  }
+  return lines.join("\n");
 }
 
 /** Fallback for events without a dedicated template — the title/body already come in Persian. */

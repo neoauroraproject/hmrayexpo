@@ -2,7 +2,13 @@ import type { Bot } from "grammy";
 import type { ApiClient, BotRequestItem } from "../api-client.js";
 import * as L from "../copy.js";
 import { matchMenu } from "../match-menu.js";
-import { collectingKeyboard, itemDeleteInlineKeyboard, mainMenuKeyboard, requestTypeInlineKeyboard } from "../menus.js";
+import {
+  collectingKeyboard,
+  itemDeleteInlineKeyboard,
+  itemNoteInlineKeyboard,
+  mainMenuKeyboard,
+  requestTypeInlineKeyboard,
+} from "../menus.js";
 import { getBotCopy } from "../runtime-copy.js";
 import { downloadTelegramFile } from "../telegram-files.js";
 import type { BotContext } from "../types.js";
@@ -37,6 +43,7 @@ async function openRequest(
     ctx.session.openRequestCode = request.code;
     ctx.session.openRequestType = type;
     ctx.session.openRequestItemCount = 0;
+    ctx.session.noteItemId = undefined;
 
     await ctx.reply(L.REQUEST_OPENED_FIRST_ITEM, { reply_markup: collectingKeyboard() });
   } catch (err) {
@@ -101,6 +108,7 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
       ctx.session.openRequestCode = found.code;
       ctx.session.openRequestType = found.type as "TEMU" | "EXTERNAL_STORE";
       ctx.session.openRequestItemCount = found.items.length;
+      ctx.session.noteItemId = undefined;
       await ctx.reply(L.REQUEST_OPENED_FIRST_ITEM, { reply_markup: collectingKeyboard() });
     } catch (err) {
       await ctx.reply(L.friendlyError(err));
@@ -123,7 +131,11 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
       ctx.session.openRequestCode = undefined;
       ctx.session.openRequestType = undefined;
       ctx.session.openRequestItemCount = 0;
-      await ctx.reply(L.requestFinalized(finalized.code), { reply_markup: mainMenuKeyboard() });
+      ctx.session.noteItemId = undefined;
+      await ctx.reply(
+        L.requestFinalized(finalized.trackingCode ?? finalized.code, finalized.trackingUrl),
+        { reply_markup: mainMenuKeyboard() },
+      );
     } catch (err) {
       await ctx.reply(L.friendlyError(err));
     }
@@ -170,12 +182,29 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
     }
   });
 
+  bot.callbackQuery(/^item:note:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const itemId = ctx.match[1];
+    if (!ctx.session.openRequestId) {
+      await ctx.reply(L.NO_OPEN_REQUEST);
+      return;
+    }
+    ctx.session.mode = "awaiting_item_note";
+    ctx.session.noteItemId = itemId;
+    await ctx.reply(L.ASK_ITEM_NOTE, { reply_markup: collectingKeyboard() });
+  });
+
   bot.on("message:text").filter(
     (ctx) => ctx.session.mode === "awaiting_store_name",
     async (ctx) => {
       const storeName = ctx.message.text.trim();
       await openRequest(ctx, api, "EXTERNAL_STORE", storeName === L.BTN_SKIP ? undefined : storeName);
     },
+  );
+
+  bot.on("message:text").filter(
+    (ctx) => ctx.session.mode === "awaiting_item_note",
+    (ctx) => handleItemNoteText(ctx, api),
   );
 
   bot.on("message:text").filter(
@@ -187,6 +216,26 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
     (ctx) => ctx.session.mode === "collecting_request",
     (ctx) => handleCollectingPhoto(ctx, api),
   );
+}
+
+async function handleItemNoteText(ctx: BotContext, api: ApiClient): Promise<void> {
+  const telegramUserId = requireTelegramUserId(ctx);
+  const requestId = ctx.session.openRequestId;
+  const itemId = ctx.session.noteItemId;
+  const note = ctx.message?.text?.trim();
+  if (!telegramUserId || !requestId || !itemId || !note) return;
+
+  try {
+    await api.updateRequestItemNote(requestId, itemId, {
+      telegramUserId,
+      userNote: note,
+    });
+    ctx.session.mode = "collecting_request";
+    ctx.session.noteItemId = undefined;
+    await ctx.reply(L.ITEM_NOTE_SAVED, { reply_markup: collectingKeyboard() });
+  } catch (err) {
+    await ctx.reply(L.friendlyError(err));
+  }
 }
 
 async function handleCollectingText(ctx: BotContext, api: ApiClient): Promise<void> {
@@ -209,7 +258,7 @@ async function handleCollectingText(ctx: BotContext, api: ApiClient): Promise<vo
       userNote,
       telegramMessageId: String(ctx.message.message_id),
     });
-    await ackItemAdded(ctx, item.displayIndex);
+    await ackItemAdded(ctx, item);
   } catch (err) {
     await ctx.reply(L.friendlyError(err));
   }
@@ -233,7 +282,7 @@ async function handleCollectingPhoto(ctx: BotContext, api: ApiClient): Promise<v
       userNote: ctx.message.caption?.trim() || undefined,
       telegramMessageId: String(ctx.message.message_id),
     });
-    await ackItemAdded(ctx, item.displayIndex);
+    await ackItemAdded(ctx, item);
   } catch (err) {
     await ctx.reply(L.friendlyError(err));
   }
@@ -243,11 +292,9 @@ async function handleCollectingPhoto(ctx: BotContext, api: ApiClient): Promise<v
  * Acknowledge each collected item and keep the collecting keyboard visible
  * so the customer can send more links/photos or press finalize.
  */
-async function ackItemAdded(ctx: BotContext, displayIndex: number): Promise<void> {
+async function ackItemAdded(ctx: BotContext, item: BotRequestItem): Promise<void> {
   ctx.session.openRequestItemCount += 1;
-  const text =
-    ctx.session.openRequestItemCount === 1
-      ? L.FIRST_ITEM_ACK
-      : L.itemAdded(displayIndex);
-  await ctx.reply(text, { reply_markup: collectingKeyboard() });
+  await ctx.reply(L.itemAdded(item.displayIndex), {
+    reply_markup: itemNoteInlineKeyboard(item.id),
+  });
 }

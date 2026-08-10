@@ -79,6 +79,16 @@ export class BotActorBodyDto {
   telegramUserId: string;
 }
 
+export class UpdateRequestItemNoteDto {
+  @IsNumberString({ no_symbols: true })
+  telegramUserId: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  userNote: string;
+}
+
 export class BotActorQueryDto extends PaginationQueryDto {
   @IsNumberString({ no_symbols: true })
   telegramUserId: string;

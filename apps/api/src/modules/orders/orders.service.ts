@@ -148,6 +148,7 @@ export class OrdersService {
     const order = await this.prisma.order.findUnique({
       where: { code },
       include: {
+        request: { select: { code: true } },
         items: {
           orderBy: { displayIndex: "asc" },
           select: {
@@ -181,6 +182,7 @@ export class OrdersService {
 
     return {
       code: order.code,
+      trackingCode: order.request.code,
       status: order.status,
       inspectionType: order.inspectionType,
       purchaseMode: order.purchaseMode,
@@ -294,10 +296,17 @@ export class OrdersService {
 
   /** Announces a newly created order to admins and the customer. */
   async announceNewOrder(order: Order): Promise<void> {
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: order.userId },
-      select: { customerCode: true },
-    });
+    const [user, request] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({
+        where: { id: order.userId },
+        select: { customerCode: true },
+      }),
+      this.prisma.purchaseRequest.findUnique({
+        where: { id: order.requestId },
+        select: { code: true },
+      }),
+    ]);
+    const requestCode = request?.code ?? null;
 
     await this.notifications.notifyAdmins({
       event: NotificationEvent.NEW_ORDER,
@@ -306,6 +315,7 @@ export class OrdersService {
       meta: {
         orderId: order.id,
         orderCode: order.code,
+        requestCode,
         customerCode: user.customerCode,
         totalToman: order.totalToman.toString(),
       },
@@ -316,7 +326,7 @@ export class OrdersService {
       event: NotificationEvent.NEW_ORDER,
       title: `سفارش ${order.code} ثبت شد`,
       body: `سفارش شما به مبلغ ${formatToman(Number(order.totalToman))} ثبت شد و در حال پردازش است.`,
-      meta: { orderId: order.id, orderCode: order.code },
+      meta: { orderId: order.id, orderCode: order.code, requestCode },
     });
   }
 
@@ -478,12 +488,22 @@ export class OrdersService {
     });
 
     if (dto.status === OrderStatus.READY_FOR_IRAN || dto.status === OrderStatus.DELIVERED) {
+      const request = await this.prisma.purchaseRequest.findUnique({
+        where: { id: order.requestId },
+        select: { code: true },
+      });
+      const trackHint = request?.code ? ` کد پیگیری: ${request.code}.` : "";
       await this.notifications.notifyUser({
         userId: order.userId,
         event: NotificationEvent.ORDER_READY,
         title: `به‌روزرسانی سفارش ${order.code}`,
-        body: dto.note ?? `وضعیت سفارش شما به ${dto.status} تغییر کرد.`,
-        meta: { orderId: order.id, orderCode: order.code, status: dto.status },
+        body: (dto.note ?? `وضعیت سفارش شما به ${dto.status} تغییر کرد.`) + trackHint,
+        meta: {
+          orderId: order.id,
+          orderCode: order.code,
+          requestCode: request?.code ?? null,
+          status: dto.status,
+        },
       });
     }
 

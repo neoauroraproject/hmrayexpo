@@ -87,7 +87,10 @@ async function buildText(
       });
 
     case "PAYMENT_CONFIRMED":
-      return copy.paymentConfirmedCustomer({ orderCode: payload.orderCode });
+      return copy.paymentConfirmedCustomer({
+        orderCode: payload.orderCode,
+        requestCode: payload.requestCode,
+      });
 
     case "PAYMENT_REJECTED":
       return copy.paymentRejectedCustomer({
@@ -113,6 +116,7 @@ async function buildText(
             totalLabel: typeof payload.totalToman !== "undefined"
               ? formatToman(Number(payload.totalToman))
               : undefined,
+            requestCode: payload.requestCode,
           });
 
     default:
