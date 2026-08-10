@@ -74,10 +74,11 @@ export const REQUEST_OPENED_FIRST_ITEM = [
 ].join("\n");
 
 /** Sent once, right after the first link/photo of an open request. */
-export const FIRST_ITEM_ACK = "لینک‌ها رسید. من بررسی‌شون می‌کنم و قیمت رو براتون می‌فرستم.";
+export const FIRST_ITEM_ACK =
+  "✅ لینک اضافه شد. می‌تونی لینک یا عکس بعدی رو بفرستی، یا وقتی تموم شد «ثبت نهایی درخواست» رو بزن.";
 
 export function itemAdded(displayIndex: number): string {
-  return `✅ #${String(displayIndex).padStart(2, "0")} اضافه شد.`;
+  return `✅ #${String(displayIndex).padStart(2, "0")} اضافه شد. لینک/عکس بعدی رو بفرست یا «ثبت نهایی درخواست» رو بزن.`;
 }
 
 export const ITEM_SOURCE_NEEDED =

@@ -240,12 +240,14 @@ async function handleCollectingPhoto(ctx: BotContext, api: ApiClient): Promise<v
 }
 
 /**
- * First item gets the friendly "we got it, we'll send prices separately" ack;
- * every item after that is just a one-line confirmation — enough feedback
- * without nagging "next product?" after every message.
+ * Acknowledge each collected item and keep the collecting keyboard visible
+ * so the customer can send more links/photos or press finalize.
  */
 async function ackItemAdded(ctx: BotContext, displayIndex: number): Promise<void> {
-  const isFirst = ctx.session.openRequestItemCount === 0;
   ctx.session.openRequestItemCount += 1;
-  await ctx.reply(isFirst ? L.FIRST_ITEM_ACK : L.itemAdded(displayIndex));
+  const text =
+    ctx.session.openRequestItemCount === 1
+      ? L.FIRST_ITEM_ACK
+      : L.itemAdded(displayIndex);
+  await ctx.reply(text, { reply_markup: collectingKeyboard() });
 }

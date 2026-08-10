@@ -145,6 +145,8 @@ export class RequestsService {
         requestCode: updated.code,
         customerCode: user.customerCode,
         itemCount: activeItems,
+        requestType: updated.type,
+        url: `${this.config.adminPublicUrl.replace(/\/$/, "")}/requests/${updated.id}`,
       },
     });
 
