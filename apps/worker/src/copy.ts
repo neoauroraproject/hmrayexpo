@@ -65,8 +65,12 @@ export function quoteSentCustomer(payload: {
   url?: unknown;
   items?: QuoteLineItem[];
 }): string {
-  const lines = ["💰 پیش‌فاکتور شما آماده شد!"];
-  if (payload.quoteCode) lines.push(`کد پیش‌فاکتور: ${payload.quoteCode}`);
+  const lines = [
+    "💰 پیش‌فاکتور شما آماده شد!",
+    "",
+    "مبالغ زیر به تومان ایران هستند.",
+  ];
+  if (payload.quoteCode) lines.push(`📄 کد پیش‌فاکتور: ${payload.quoteCode}`);
 
   if (payload.items && payload.items.length > 0) {
     lines.push("");
@@ -76,9 +80,13 @@ export function quoteSentCustomer(payload: {
   }
 
   lines.push("");
-  if (payload.totalLabel) lines.push(`جمع کل: ${payload.totalLabel}`);
-  if (payload.expiresAt) lines.push(`اعتبار تا: ${formatDateFa(payload.expiresAt)}`);
-  if (payload.url) lines.push(`\nمشاهده و پرداخت:\n${payload.url}`);
+  if (payload.totalLabel) lines.push(`💵 جمع کل قابل پرداخت: ${payload.totalLabel}`);
+  if (payload.expiresAt) lines.push(`⏰ اعتبار تا: ${formatDateFa(payload.expiresAt)}`);
+  if (payload.url) {
+    lines.push("");
+    lines.push("برای مشاهده جزئیات، تأیید یا رد از دکمه/لینک زیر استفاده کن:");
+    lines.push(String(payload.url));
+  }
   return lines.join("\n");
 }
 
