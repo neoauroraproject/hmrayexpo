@@ -96,6 +96,26 @@ export class RequestsController {
     return item;
   }
 
+  @Post(":id/items/:itemId/refresh-preview")
+  @Roles(AdminRole.ADMIN, AdminRole.SUPPORT, AdminRole.OPERATOR)
+  async refreshItemPreview(
+    @Param("id") id: string,
+    @Param("itemId") itemId: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @RequestContext() context: ClientContext,
+  ) {
+    const item = await this.requests.refreshItemPreview(id, itemId);
+    await this.audit.log({
+      actorAdminId: admin.id,
+      action: "request.item.refreshPreview",
+      entityType: "RequestItem",
+      entityId: item.id,
+      newValue: { images: item.images },
+      context,
+    });
+    return item;
+  }
+
   @Post(":id/messages")
   message(
     @Param("id") id: string,

@@ -75,6 +75,13 @@ function formatPrice(value: string | number | null | undefined): string {
   return String(value);
 }
 
+function formatToman(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "۰";
+  return Math.round(value).toLocaleString("fa-IR");
+}
+
+const DEFAULT_OMR_RATE = "160000";
+
 export default function RequestWorkspacePage() {
   const params = useParams();
   const id = params.id as string;
@@ -83,11 +90,28 @@ export default function RequestWorkspacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [omrRate, setOmrRate] = useState("160000");
+  const [omrRate, setOmrRate] = useState(DEFAULT_OMR_RATE);
   const [itemPrices, setItemPrices] = useState<Record<string, string>>({});
   const [savingPriceId, setSavingPriceId] = useState<string | null>(null);
+  const [refreshingPreviewId, setRefreshingPreviewId] = useState<string | null>(null);
   const [issuing, setIssuing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const loadOmrRate = useCallback(async () => {
+    try {
+      const settings = await apiFetch<{ liveRates?: { OMR?: string | number | null } }>(
+        "/admin/settings",
+      );
+      const liveOmr = settings.liveRates?.OMR;
+      if (liveOmr !== null && liveOmr !== undefined && String(liveOmr).trim() !== "") {
+        setOmrRate(String(liveOmr));
+      } else {
+        setOmrRate(DEFAULT_OMR_RATE);
+      }
+    } catch {
+      setOmrRate(DEFAULT_OMR_RATE);
+    }
+  }, []);
 
   const loadRequest = useCallback(async () => {
     setError(null);
@@ -117,7 +141,8 @@ export default function RequestWorkspacePage() {
   useEffect(() => {
     setLoading(true);
     void loadRequest();
-  }, [loadRequest]);
+    void loadOmrRate();
+  }, [loadRequest, loadOmrRate]);
 
   const handlePriceSave = async (itemId: string) => {
     const val = itemPrices[itemId]?.trim() ?? "";
@@ -152,6 +177,21 @@ export default function RequestWorkspacePage() {
       setActionError(err instanceof Error ? err.message : "خطا در صدور پیش‌فاکتور");
     } finally {
       setIssuing(false);
+    }
+  };
+
+  const handleRefreshPreview = async (itemId: string) => {
+    setRefreshingPreviewId(itemId);
+    setActionError(null);
+    try {
+      await apiFetch(`/admin/requests/${id}/items/${itemId}/refresh-preview`, {
+        method: "POST",
+      });
+      await loadRequest();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "خطا در بروزرسانی عکس");
+    } finally {
+      setRefreshingPreviewId(null);
     }
   };
 
@@ -203,8 +243,9 @@ export default function RequestWorkspacePage() {
     );
   }
 
+  const rateNum = parseFloat(omrRate || "0") || 0;
   const totalOmr = Object.values(itemPrices).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
-  const totalToman = totalOmr * parseFloat(omrRate || "0");
+  const totalToman = totalOmr * rateNum;
   const user = request.user;
   const notes = request.notes ?? [];
 
@@ -317,6 +358,8 @@ export default function RequestWorkspacePage() {
                 request.items!.map((item) => {
                   const thumb = itemThumb(item);
                   const idx = item.displayIndex ?? 0;
+                  const priceOmr = parseFloat(itemPrices[item.id] || "") || 0;
+                  const priceToman = priceOmr * rateNum;
                   return (
                     <div
                       key={item.id}
@@ -347,13 +390,25 @@ export default function RequestWorkspacePage() {
                                 لینک محصول <ExternalLink className="w-3 h-3" />
                               </a>
                             )}
+                            {!thumb && item.originalUrl && (
+                              <button
+                                type="button"
+                                onClick={() => void handleRefreshPreview(item.id)}
+                                disabled={refreshingPreviewId === item.id}
+                                className="text-[11px] text-blue-600 hover:underline mt-1 disabled:opacity-50"
+                              >
+                                {refreshingPreviewId === item.id
+                                  ? "در حال بروزرسانی…"
+                                  : "بروزرسانی عکس"}
+                              </button>
+                            )}
                             {item.status && (
                               <span className="text-[11px] text-slate-400 mt-1 block">{item.status}</span>
                             )}
                           </div>
-                          <div className="w-32 shrink-0">
+                          <div className="w-36 shrink-0">
                             <label className="text-xs text-slate-500 block mb-1">
-                              قیمت ({item.currency || "OMR"})
+                              قیمت (OMR)
                               {savingPriceId === item.id ? " …" : ""}
                             </label>
                             <Input
@@ -367,6 +422,9 @@ export default function RequestWorkspacePage() {
                               className="h-8 text-sm"
                               placeholder="0.00"
                             />
+                            <p className="text-[11px] text-slate-500 mt-1" dir="rtl">
+                              ≈ {formatToman(priceToman)} تومان
+                            </p>
                           </div>
                         </div>
                         {item.userNote && (
@@ -456,7 +514,7 @@ export default function RequestWorkspacePage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  نرخ تبدیل (تومان / OMR)
+                  نرخ تبدیل (تومان به ازای ۱ OMR)
                 </label>
                 <Input
                   type="number"
@@ -464,19 +522,22 @@ export default function RequestWorkspacePage() {
                   value={omrRate}
                   onChange={(e) => setOmrRate(e.target.value)}
                 />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  از تنظیمات بارگذاری شده؛ قابل ویرایش است. مشتری مبلغ را به تومان می‌بیند.
+                </p>
               </div>
 
               <div className="pt-4 border-t border-slate-100 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">جمع محصولات (OMR):</span>
+                  <span className="text-slate-500">جمع OMR:</span>
                   <span className="font-medium text-slate-900" dir="ltr">
                     {totalOmr.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">جمع به تومان:</span>
-                  <span className="font-medium text-slate-900" dir="ltr">
-                    {totalToman.toLocaleString("fa-IR")}
+                  <span className="text-slate-500">جمع تومان (پرداخت مشتری):</span>
+                  <span className="font-medium text-slate-900">
+                    {formatToman(totalToman)}
                   </span>
                 </div>
               </div>
@@ -491,7 +552,7 @@ export default function RequestWorkspacePage() {
                   {issuing ? "در حال صدور..." : "صدور پیش‌فاکتور"}
                 </Button>
                 <p className="text-xs text-slate-500 text-center mt-2">
-                  ابتدا پیش‌نویس ساخته شده، سپس صادر می‌شود.
+                  با نرخ بالا صادر می‌شود؛ مشتری مبلغ را به تومان می‌بیند.
                 </p>
               </div>
             </div>

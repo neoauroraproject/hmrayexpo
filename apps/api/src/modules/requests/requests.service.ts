@@ -17,6 +17,7 @@ import { generateProductCode, generateRequestId } from "@hmray/shared";
 import { PrismaService } from "../../common/prisma/prisma.service";
 import { FA } from "../../common/errors/messages";
 import { uniqueCode } from "../../common/utils/identifiers";
+import { fetchOgImage } from "../../common/utils/link-preview";
 import { pageArgs, paginated, type Paginated } from "../../common/utils/pagination";
 import {
   canTransitionRequest,
@@ -77,18 +78,51 @@ export class RequestsService {
       throw new BadRequestException(FA.ITEM_SOURCE_REQUIRED);
     }
 
+    let images = dto.images ?? [];
+    if (dto.originalUrl && images.length === 0) {
+      const ogImage = await fetchOgImage(dto.originalUrl);
+      if (ogImage) {
+        images = [ogImage];
+      }
+    }
+
     return this.prisma.requestItem.create({
       data: {
         requestId: request.id,
         displayIndex: await this.nextDisplayIndex(request.id),
         productCode: this.productCodeFor(request.type),
         originalUrl: dto.originalUrl ?? null,
-        images: dto.images ?? [],
+        images,
         userNote: dto.userNote ?? null,
         quantity: dto.quantity ?? 1,
         telegramMessageId: dto.telegramMessageId ? BigInt(dto.telegramMessageId) : null,
       },
     });
+  }
+
+  /** Re-fetch OG/Twitter image for an existing item that has originalUrl but no image. */
+  async refreshItemPreview(requestId: string, itemId: string) {
+    const request = await this.requireRequest(requestId);
+    const item = await this.prisma.requestItem.findFirst({
+      where: { id: itemId, requestId: request.id },
+    });
+    if (!item) {
+      throw new NotFoundException(FA.REQUEST_ITEM_NOT_FOUND);
+    }
+    if (!item.originalUrl) {
+      throw new BadRequestException("item has no originalUrl to preview");
+    }
+
+    const ogImage = await fetchOgImage(item.originalUrl);
+    if (!ogImage) {
+      return stripBigInt(item);
+    }
+
+    const updated = await this.prisma.requestItem.update({
+      where: { id: item.id },
+      data: { images: [ogImage] },
+    });
+    return stripBigInt(updated);
   }
 
   /**
