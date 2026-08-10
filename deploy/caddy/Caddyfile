@@ -22,6 +22,10 @@
 		reverse_proxy api:4000
 	}
 
+	handle /uploads/* {
+		reverse_proxy api:4000
+	}
+
 	handle {
 		reverse_proxy panel:3000
 	}

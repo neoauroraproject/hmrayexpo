@@ -36,6 +36,7 @@ interface QuoteData {
   code: string;
   status: string;
   isExpired: boolean;
+  isRejected?: boolean;
   omrRate: string;
   productsTotal: string;
   productsTotalLabel: string;
@@ -60,7 +61,10 @@ export function QuoteClient({ code }: { code: string }) {
   const [validityChecked, setValidityChecked] = useState(false);
   const [inspectionType, setInspectionType] = useState<"FULL_OPEN" | "VISUAL_ONLY" | "SEALED">("VISUAL_ONLY");
   const [confirming, setConfirming] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
+  const [amountDueLabel, setAmountDueLabel] = useState<string | null>(null);
 
   // Payment state
   const [selectedMethodId, setSelectedMethodId] = useState<string>("");
@@ -79,6 +83,10 @@ export function QuoteClient({ code }: { code: string }) {
       setQuote(data);
       if (data.status === "ACCEPTED") {
         setAwaitingPayment(true);
+        setAmountDueLabel(data.productsTotalLabel);
+      }
+      if (data.status === "REJECTED" || data.isRejected) {
+        setRejected(true);
       }
     } catch (err: any) {
       setError(err.message || "خطا در دریافت اطلاعات پیش‌فاکتور");
@@ -96,7 +104,10 @@ export function QuoteClient({ code }: { code: string }) {
 
     try {
       setConfirming(true);
-      const res = await apiFetch<any>(`/public/quotes/${code}/confirm`, {
+      const res = await apiFetch<{
+        paymentMethods: PaymentMethod[];
+        amountDueLabel?: string;
+      }>(`/public/quotes/${code}/confirm`, {
         method: "POST",
         body: JSON.stringify({
           acceptedNoteIds: quote.notes.map((n) => n.id),
@@ -104,12 +115,32 @@ export function QuoteClient({ code }: { code: string }) {
           inspectionType,
         }),
       });
-      setQuote({ ...quote, paymentMethods: res.paymentMethods });
+      setQuote({ ...quote, paymentMethods: res.paymentMethods, status: "ACCEPTED" });
+      setAmountDueLabel(res.amountDueLabel ?? quote.productsTotalLabel);
       setAwaitingPayment(true);
     } catch (err: any) {
       alert(err.message || "خطا در تأیید پیش‌فاکتور");
     } finally {
       setConfirming(false);
+    }
+  }
+
+  async function handleReject() {
+    if (!quote) return;
+    if (!confirm("آیا از رد این پیش‌فاکتور مطمئن هستید؟")) return;
+
+    try {
+      setRejecting(true);
+      await apiFetch(`/public/quotes/${code}/reject`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setRejected(true);
+      setQuote({ ...quote, status: "REJECTED", isRejected: true });
+    } catch (err: any) {
+      alert(err.message || "خطا در رد پیش‌فاکتور");
+    } finally {
+      setRejecting(false);
     }
   }
 
@@ -158,6 +189,21 @@ export function QuoteClient({ code }: { code: string }) {
           <h2 className="mb-2 text-xl font-bold text-slate-900">پیش‌فاکتور منقضی شده است</h2>
           <p className="mb-6 text-slate-600">اعتبار این پیش‌فاکتور به پایان رسیده است.</p>
           <Button variant="default" className="w-full">درخواست بررسی مجدد</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (rejected || quote.status === "REJECTED") {
+    return (
+      <div className="p-8 text-center">
+        <div className="mx-auto max-w-sm rounded-2xl bg-white p-6 shadow-sm">
+          <div className="mb-4 text-4xl">❌</div>
+          <h2 className="mb-2 text-xl font-bold text-slate-900">پیش‌فاکتور رد شد</h2>
+          <p className="mb-2 text-slate-600">
+            شما این پیش‌فاکتور را رد کردید. در صورت نیاز می‌توانید از طریق ربات درخواست جدید ثبت کنید.
+          </p>
+          <p className="text-sm text-slate-500 font-mono">{quote.code}</p>
         </div>
       </div>
     );
@@ -277,17 +323,35 @@ export function QuoteClient({ code }: { code: string }) {
             </div>
           </div>
 
-          <Button 
-            className="w-full h-12 text-base" 
-            onClick={handleConfirm} 
-            disabled={confirming || !priceChecked || !shippingChecked || !validityChecked}
-          >
-            {confirming ? "در حال ثبت..." : "تأیید و ادامه"}
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button 
+              className="w-full h-12 text-base flex-1" 
+              onClick={handleConfirm} 
+              disabled={confirming || rejecting || !priceChecked || !shippingChecked || !validityChecked}
+            >
+              {confirming ? "در حال ثبت..." : "تأیید و ادامه"}
+            </Button>
+            <Button
+              className="w-full h-12 text-base flex-1"
+              variant="outline"
+              onClick={handleReject}
+              disabled={confirming || rejecting}
+            >
+              {rejecting ? "در حال رد..." : "رد پیش‌فاکتور"}
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="mt-6 space-y-6 rounded-2xl bg-white p-5 shadow-sm border border-slate-200">
           <h3 className="font-bold text-slate-900">پرداخت</h3>
+
+          <div className="rounded-lg bg-emerald-50 p-4 text-center">
+            <div className="text-sm text-emerald-700 mb-1">مبلغ قابل پرداخت</div>
+            <div className="text-2xl font-bold text-emerald-900">
+              {amountDueLabel ?? quote.productsTotalLabel}{" "}
+              <span className="text-sm font-normal">تومان</span>
+            </div>
+          </div>
           
           <div className="space-y-3">
             {quote.paymentMethods.map((method) => (

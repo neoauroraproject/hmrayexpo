@@ -154,6 +154,29 @@ async function handleTelegramTarget(
   }
 
   const text = await buildText(event, payload, target);
+
+  if (event === "QUOTE_SENT" && target === "user") {
+    const tokenOrId =
+      (typeof payload.publicToken === "string" && payload.publicToken) ||
+      (typeof payload.quoteId === "string" && payload.quoteId) ||
+      null;
+    const url = typeof payload.url === "string" ? payload.url : null;
+    const replyMarkup =
+      tokenOrId && url
+        ? {
+            inline_keyboard: [
+              [
+                { text: "✅ تأیید پیش‌فاکتور", callback_data: `quote:accept:${tokenOrId}` },
+                { text: "❌ رد", callback_data: `quote:reject:${tokenOrId}` },
+              ],
+              [{ text: "🌐 مشاهده جزئیات", url }],
+            ],
+          }
+        : undefined;
+    await sendTelegramMessage(chatId, text, { replyMarkup });
+    return;
+  }
+
   await sendTelegramMessage(chatId, text);
 }
 

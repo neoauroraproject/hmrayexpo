@@ -114,3 +114,21 @@ export class ConfirmQuoteDto {
   @IsEnum(InspectionType)
   inspectionType: InspectionType;
 }
+
+export class RejectQuoteDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+}
+
+export class BotQuoteActorDto {
+  @IsString()
+  @MinLength(1)
+  telegramUserId: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+}

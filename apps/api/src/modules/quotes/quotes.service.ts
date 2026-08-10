@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   GoneException,
   Injectable,
   NotFoundException,
@@ -19,7 +20,7 @@ import { formatToman, generateQuoteId } from "@hmray/shared";
 import { PrismaService } from "../../common/prisma/prisma.service";
 import { AppConfigService } from "../../common/config/app-config.service";
 import { FA } from "../../common/errors/messages";
-import { publicToken, uniqueCode } from "../../common/utils/identifiers";
+import { publicToken, toTelegramId, uniqueCode } from "../../common/utils/identifiers";
 import { lineTotalToman, sumDecimals, type RateMap } from "../../common/utils/money";
 import { SettingsService } from "../settings/settings.service";
 import { quoteAcceptanceKey } from "../settings/settings.constants";
@@ -227,6 +228,7 @@ export class QuotesService {
         quoteId: issued.id,
         quoteCode: issued.code,
         requestCode: quote.request.code,
+        publicToken: issued.publicToken,
         url,
         expiresAt: issued.expiresAt.toISOString(),
         productsTotal: issued.productsTotal.toString(),
@@ -325,6 +327,7 @@ export class QuotesService {
       code: quote.code,
       status: quote.status,
       isExpired: quote.status === QuoteStatus.EXPIRED,
+      isRejected: quote.status === QuoteStatus.REJECTED,
       omrRate: quote.omrRate.toString(),
       productsTotal: quote.productsTotal.toString(),
       productsTotalLabel: formatToman(Number(quote.productsTotal)),
@@ -363,6 +366,9 @@ export class QuotesService {
 
     if (quote.status === QuoteStatus.ACCEPTED) {
       throw new ConflictException(FA.QUOTE_ALREADY_ACCEPTED);
+    }
+    if (quote.status === QuoteStatus.REJECTED) {
+      throw new ConflictException(FA.QUOTE_ALREADY_REJECTED);
     }
     if (quote.status === QuoteStatus.EXPIRED) {
       throw new GoneException(FA.QUOTE_EXPIRED);
@@ -446,7 +452,93 @@ export class QuotesService {
       amountDueLabel: formatToman(Number(updated.productsTotal)),
       inspectionType: dto.inspectionType,
       paymentMethods: methods,
+      url: this.config.quoteUrl(updated.publicToken),
     };
+  }
+
+  /**
+   * Customer rejection from the public page or bot. Only SENT quotes can be rejected.
+   */
+  async rejectPublic(codeOrToken: string, reason?: string) {
+    const quote = await this.expireIfDue(await this.requirePublicQuote(codeOrToken));
+
+    if (quote.status === QuoteStatus.REJECTED) {
+      throw new ConflictException(FA.QUOTE_ALREADY_REJECTED);
+    }
+    if (quote.status === QuoteStatus.ACCEPTED) {
+      throw new ConflictException(FA.QUOTE_ALREADY_ACCEPTED);
+    }
+    if (quote.status === QuoteStatus.EXPIRED) {
+      throw new GoneException(FA.QUOTE_EXPIRED);
+    }
+    if (quote.status === QuoteStatus.SUPERSEDED) {
+      throw new ConflictException(FA.QUOTE_SUPERSEDED);
+    }
+    if (quote.status !== QuoteStatus.SENT) {
+      throw new ConflictException(FA.QUOTE_NOT_SENT);
+    }
+
+    const updated = await this.prisma.quote.update({
+      where: { id: quote.id },
+      data: { status: QuoteStatus.REJECTED },
+    });
+
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: quote.userId },
+      select: { customerCode: true },
+    });
+
+    const reasonLabel = reason?.trim() ? reason.trim() : null;
+    await this.notifications.notifyAdmins({
+      event: NotificationEvent.SUPPORT_MESSAGE,
+      title: `پیش‌فاکتور ${quote.code} رد شد`,
+      body: reasonLabel
+        ? `مشتری ${user.customerCode} پیش‌فاکتور ${quote.code} را رد کرد. دلیل: ${reasonLabel}`
+        : `مشتری ${user.customerCode} پیش‌فاکتور ${quote.code} را رد کرد.`,
+      meta: {
+        quoteId: quote.id,
+        quoteCode: quote.code,
+        customerCode: user.customerCode,
+        reason: reasonLabel,
+        status: QuoteStatus.REJECTED,
+      },
+    });
+
+    return { status: updated.status, quoteCode: updated.code };
+  }
+
+  /**
+   * Bot-facing acceptance: accept all notes, default inspection, verify Telegram ownership.
+   */
+  async confirmForTelegramUser(codeOrTokenOrId: string, telegramUserId: string) {
+    const quote = await this.requirePublicQuoteOrId(codeOrTokenOrId);
+    await this.assertTelegramOwnsQuote(quote, telegramUserId);
+
+    const notes = await this.prisma.quoteNote.findMany({
+      where: { quoteId: quote.id },
+      select: { id: true },
+    });
+    const inspectionType = await this.settings.defaultInspectionType();
+
+    return this.confirmPublic(
+      quote.publicToken,
+      {
+        acceptedNoteIds: notes.map((note) => note.id),
+        acceptedTerms: true,
+        inspectionType,
+      },
+      null,
+    );
+  }
+
+  async rejectForTelegramUser(
+    codeOrTokenOrId: string,
+    telegramUserId: string,
+    reason?: string,
+  ) {
+    const quote = await this.requirePublicQuoteOrId(codeOrTokenOrId);
+    await this.assertTelegramOwnsQuote(quote, telegramUserId);
+    return this.rejectPublic(quote.publicToken, reason);
   }
 
   /** Used by PaymentsModule to look a quote up from a public link. */
@@ -458,6 +550,32 @@ export class QuotesService {
       throw new NotFoundException(FA.QUOTE_NOT_FOUND);
     }
     return quote;
+  }
+
+  async requirePublicQuoteOrId(codeOrTokenOrId: string): Promise<Quote> {
+    const quote = await this.prisma.quote.findFirst({
+      where: {
+        OR: [
+          { publicToken: codeOrTokenOrId },
+          { code: codeOrTokenOrId },
+          { id: codeOrTokenOrId },
+        ],
+      },
+    });
+    if (!quote) {
+      throw new NotFoundException(FA.QUOTE_NOT_FOUND);
+    }
+    return quote;
+  }
+
+  private async assertTelegramOwnsQuote(quote: Quote, telegramUserId: string): Promise<void> {
+    const account = await this.prisma.telegramAccount.findUnique({
+      where: { telegramUserId: toTelegramId(telegramUserId) },
+      select: { userId: true },
+    });
+    if (!account || account.userId !== quote.userId) {
+      throw new ForbiddenException(FA.QUOTE_NOT_OWNED);
+    }
   }
 
   /** Lazily flips a SENT quote to EXPIRED once its deadline has passed. */

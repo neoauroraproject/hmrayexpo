@@ -87,7 +87,18 @@ export class SettingsController {
       await this.settings.set(TELEGRAM_BOT_TOKEN_KEY, dto.botToken.trim());
     }
     if (dto.adminChatId !== undefined) {
-      await this.settings.set(SETTING_KEYS.ADMIN_TELEGRAM_CHAT_ID, dto.adminChatId.trim());
+      const chatId = dto.adminChatId.trim();
+      await this.settings.set(SETTING_KEYS.ADMIN_TELEGRAM_CHAT_ID, chatId);
+      if (/^\d+$/.test(chatId)) {
+        try {
+          await this.prisma.adminUser.update({
+            where: { id: admin.id },
+            data: { telegramUserId: BigInt(chatId) },
+          });
+        } catch {
+          // Invalid BigInt or unique constraint — settings still saved; ignore link failure.
+        }
+      }
     }
 
     await this.audit.log({

@@ -325,4 +325,74 @@ export class ApiClient {
       form,
     });
   }
+
+  // ─── Quotes (bot) ───────────────────────────────────────────
+  acceptQuote(codeOrToken: string, telegramUserId: string): Promise<QuoteAcceptResult> {
+    return this.request(`/bot/quotes/${encodeURIComponent(codeOrToken)}/accept`, {
+      method: "POST",
+      json: { telegramUserId },
+    });
+  }
+
+  rejectQuote(
+    codeOrToken: string,
+    telegramUserId: string,
+    reason?: string,
+  ): Promise<QuoteRejectResult> {
+    return this.request(`/bot/quotes/${encodeURIComponent(codeOrToken)}/reject`, {
+      method: "POST",
+      json: { telegramUserId, reason },
+    });
+  }
+
+  // ─── Admin (bot) ────────────────────────────────────────────
+  getAdminMe(telegramUserId: string): Promise<AdminMeResult> {
+    return this.request("/bot/admin/me", { query: { telegramUserId } });
+  }
+
+  getAdminSummary(telegramUserId: string): Promise<AdminSummaryResult> {
+    return this.request("/bot/admin/summary", { query: { telegramUserId } });
+  }
+}
+
+export interface QuoteAcceptResult {
+  status: string;
+  awaitingPayment?: boolean;
+  quoteCode: string;
+  amountDue: string;
+  amountDueLabel: string;
+  inspectionType?: string;
+  paymentMethods: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    accountOrWallet: string | null;
+    network: string | null;
+    instructions: string | null;
+  }>;
+  url?: string;
+}
+
+export interface QuoteRejectResult {
+  status: string;
+  quoteCode: string;
+}
+
+export interface AdminMeResult {
+  isAdmin: boolean;
+  role?: string;
+  displayName?: string;
+}
+
+export interface AdminSummaryResult {
+  pendingRequests: number;
+  pendingPayments: number;
+  openTickets: number;
+  draftBroadcasts: number;
+  panelUrl: string;
+  links?: {
+    payments: string;
+    requests: string;
+    broadcasts: string;
+  };
 }

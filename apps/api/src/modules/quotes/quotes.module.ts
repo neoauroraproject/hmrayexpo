@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { BotQuotesController } from "./bot-quotes.controller";
 import {
   PublicQuotesController,
   QuotesController,
@@ -7,7 +8,12 @@ import {
 import { QuotesService } from "./quotes.service";
 
 @Module({
-  controllers: [RequestQuotesController, QuotesController, PublicQuotesController],
+  controllers: [
+    RequestQuotesController,
+    QuotesController,
+    PublicQuotesController,
+    BotQuotesController,
+  ],
   providers: [QuotesService],
   exports: [QuotesService],
 })

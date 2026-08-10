@@ -71,7 +71,7 @@ export class AppConfigService {
   }
 
   quoteUrl(publicToken: string): string {
-    return `${this.quotePublicBaseUrl.replace(/\/$/, "")}/quote/${publicToken}`;
+    return `${this.quotePublicBaseUrl.replace(/\/$/, "")}/q/${publicToken}`;
   }
 
   orderTrackingUrl(code: string): string {

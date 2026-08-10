@@ -1,4 +1,5 @@
 import { InlineKeyboard, Keyboard } from "grammy";
+import { ADMIN_COPY } from "./admin-copy.js";
 import * as L from "./copy.js";
 import { getBotCopy } from "./runtime-copy.js";
 
@@ -15,6 +16,18 @@ export function mainMenuKeyboard(): Keyboard {
     .text(menus.rules)
     .row()
     .text(menus.support)
+    .resized();
+}
+
+export function adminMenuKeyboard(): Keyboard {
+  return new Keyboard()
+    .text(ADMIN_COPY.summaryTitle)
+    .text(ADMIN_COPY.broadcasts)
+    .row()
+    .text(ADMIN_COPY.pendingPayments)
+    .text(ADMIN_COPY.newRequests)
+    .row()
+    .text(ADMIN_COPY.customerMenu)
     .resized();
 }
 

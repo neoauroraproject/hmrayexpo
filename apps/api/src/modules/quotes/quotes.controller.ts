@@ -11,7 +11,7 @@ import {
 import type { AuthenticatedAdmin } from "../../common/auth/authenticated-admin";
 import { AuditService } from "../audit/audit.service";
 import { QuotesService } from "./quotes.service";
-import { ConfirmQuoteDto, CreateQuoteNoteDto, UpsertQuoteDto } from "./dto/quote.dto";
+import { ConfirmQuoteDto, CreateQuoteNoteDto, RejectQuoteDto, UpsertQuoteDto } from "./dto/quote.dto";
 
 @Controller("admin/requests")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -107,5 +107,11 @@ export class PublicQuotesController {
     @RequestContext() context: ClientContext,
   ) {
     return this.quotes.confirmPublic(codeOrToken, dto, context.ip);
+  }
+
+  @Post(":codeOrToken/reject")
+  @HttpCode(HttpStatus.OK)
+  reject(@Param("codeOrToken") codeOrToken: string, @Body() dto: RejectQuoteDto) {
+    return this.quotes.rejectPublic(codeOrToken, dto.reason);
   }
 }

@@ -3,11 +3,13 @@ import { Bot, webhookCallback } from "grammy";
 import { ApiClient } from "./api-client.js";
 import { loadBotEnvBase, resolveBotEnv } from "./env.js";
 import { registerAddressesHandlers } from "./handlers/addresses.js";
+import { registerAdminMenuHandlers } from "./handlers/admin-menu.js";
 import { registerCancelHandler } from "./handlers/cancel.js";
 import { registerFallbackHandlers } from "./handlers/fallback.js";
 import { registerMyRequestsHandler } from "./handlers/my-requests.js";
 import { registerNewRequestHandlers } from "./handlers/new-request.js";
 import { registerPaymentsHandlers } from "./handlers/payments.js";
+import { registerQuoteHandlers } from "./handlers/quotes.js";
 import { registerRulesHandler } from "./handlers/rules.js";
 import { registerStartHandler } from "./handlers/start.js";
 import { registerSupportHandlers } from "./handlers/support.js";
@@ -51,6 +53,8 @@ async function main(): Promise<void> {
   // each `register*` call, and the fallback handlers (registered last) catch
   // anything nothing else claimed.
   registerStartHandler(bot, api);
+  registerAdminMenuHandlers(bot, api);
+  registerQuoteHandlers(bot, api);
   registerCancelHandler(bot);
   registerNewRequestHandlers(bot, api);
   registerMyRequestsHandler(bot, api);

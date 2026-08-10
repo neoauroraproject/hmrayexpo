@@ -1,17 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUpload } from "@/lib/api";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { Textarea } from "@/app/components/ui/Textarea";
-import { Send, Trash2 } from "lucide-react";
+import { ImageIcon, Send, Trash2 } from "lucide-react";
 
 interface Broadcast {
   id: string;
   title: string;
   body: string;
+  mediaUrl?: string | null;
   status: string;
   audience: { kind: string; city?: string; batchId?: string };
   sentCount: number;
@@ -52,7 +53,10 @@ export default function BroadcastsPage() {
     kind: "all",
     city: "",
     batchId: "",
+    mediaUrl: "" as string,
   });
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,6 +90,33 @@ export default function BroadcastsPage() {
     }
   };
 
+  const handleImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const localPreview = URL.createObjectURL(file);
+      setPreviewUrl(localPreview);
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploaded = await apiUpload<{ url: string }>("/admin/uploads", formData);
+      setForm((prev) => ({ ...prev, mediaUrl: uploaded.url }));
+    } catch (err) {
+      setError((err as Error).message);
+      setPreviewUrl(null);
+      setForm((prev) => ({ ...prev, mediaUrl: "" }));
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const clearImage = () => {
+    setPreviewUrl(null);
+    setForm((prev) => ({ ...prev, mediaUrl: "" }));
+  };
+
   const handleCreate = (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.title.trim() || !form.body.trim()) return;
@@ -95,6 +126,7 @@ export default function BroadcastsPage() {
         body: JSON.stringify({
           title: form.title.trim(),
           body: form.body.trim(),
+          ...(form.mediaUrl ? { mediaUrl: form.mediaUrl } : {}),
           audience: {
             kind: form.kind,
             ...(form.kind === "city" && form.city ? { city: form.city } : {}),
@@ -102,7 +134,8 @@ export default function BroadcastsPage() {
           },
         }),
       });
-      setForm({ title: "", body: "", kind: "all", city: "", batchId: "" });
+      setForm({ title: "", body: "", kind: "all", city: "", batchId: "", mediaUrl: "" });
+      setPreviewUrl(null);
       setMessage("پیام همگانی به‌عنوان پیش‌نویس ذخیره شد.");
     });
   };
@@ -155,6 +188,25 @@ export default function BroadcastsPage() {
               required
             />
           </div>
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">
+              عکس اختیاری (به‌عنوان کپشن: عنوان + متن)
+            </label>
+            <Input type="file" accept="image/*" onChange={handleImageChange} disabled={uploading || busy} />
+            {(previewUrl || form.mediaUrl) && (
+              <div className="mt-3 flex items-start gap-3">
+                <img
+                  src={previewUrl || form.mediaUrl}
+                  alt="پیش‌نمایش"
+                  className="h-28 w-28 rounded-md border border-slate-200 object-cover"
+                />
+                <Button type="button" variant="outline" onClick={clearImage} disabled={busy}>
+                  حذف عکس
+                </Button>
+              </div>
+            )}
+            {uploading && <p className="mt-2 text-xs text-slate-500">در حال آپلود...</p>}
+          </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="mb-1 block text-sm text-slate-600">مخاطبان</label>
@@ -192,7 +244,7 @@ export default function BroadcastsPage() {
               </div>
             )}
           </div>
-          <Button type="submit" disabled={busy}>
+          <Button type="submit" disabled={busy || uploading}>
             ذخیره پیش‌نویس
           </Button>
         </form>
@@ -226,7 +278,14 @@ export default function BroadcastsPage() {
               ) : (
                 broadcasts.map((broadcast) => (
                   <tr key={broadcast.id} className="transition-colors hover:bg-slate-50">
-                    <td className="px-6 py-4 font-medium text-slate-900">{broadcast.title}</td>
+                    <td className="px-6 py-4 font-medium text-slate-900">
+                      <span className="inline-flex items-center gap-2">
+                        {broadcast.mediaUrl ? (
+                          <ImageIcon className="h-4 w-4 text-sky-600" aria-label="دارای عکس" />
+                        ) : null}
+                        {broadcast.title}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-slate-600">
                       {AUDIENCE_OPTIONS.find((o) => o.value === broadcast.audience?.kind)?.label ??
                         broadcast.audience?.kind}

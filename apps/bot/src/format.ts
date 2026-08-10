@@ -25,6 +25,7 @@ const QUOTE_STATUS_FA: Record<QuoteStatus, string> = {
   [QuoteStatus.DRAFT]: "در حال آماده‌سازی",
   [QuoteStatus.SENT]: "ارسال‌شده — منتظر تأیید توئه",
   [QuoteStatus.ACCEPTED]: "تأییدشده — منتظر پرداخت",
+  [QuoteStatus.REJECTED]: "ردشده",
   [QuoteStatus.EXPIRED]: "منقضی‌شده",
   [QuoteStatus.SUPERSEDED]: "نسخه جدیدتری داره",
 };

@@ -1,6 +1,6 @@
 import { BroadcastStatus, prisma } from "@hmray/database";
 import { createLogger } from "../logger.js";
-import { sendTelegramMessage } from "../telegram.js";
+import { sendTelegramMessage, sendTelegramPhoto } from "../telegram.js";
 
 const logger = createLogger("broadcast");
 
@@ -42,11 +42,22 @@ function parseRecipients(value: unknown): Recipient[] {
   });
 }
 
-function composeText(payload: Record<string, unknown>): string {
+function composeCaption(payload: Record<string, unknown>): string {
   const title = typeof payload.title === "string" ? payload.title.trim() : "";
   const body = typeof payload.body === "string" ? payload.body.trim() : "";
-  const mediaUrl = typeof payload.mediaUrl === "string" ? payload.mediaUrl.trim() : "";
-  return [title, body, mediaUrl].filter(Boolean).join("\n\n");
+  return [title, body].filter(Boolean).join("\n\n");
+}
+
+function resolveAbsoluteMediaUrl(mediaUrl: string): string {
+  const trimmed = mediaUrl.trim();
+  if (!trimmed.startsWith("/")) return trimmed;
+  const base = (
+    process.env.PUBLIC_URL ||
+    process.env.QUOTE_PUBLIC_BASE_URL ||
+    process.env.ADMIN_PUBLIC_URL ||
+    ""
+  ).replace(/\/$/, "");
+  return `${base}${trimmed}`;
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -84,15 +95,24 @@ export async function processBroadcastChunk(payload: Record<string, unknown>): P
     return;
   }
 
-  const text = composeText(payload);
+  const caption = composeCaption(payload);
+  const rawMedia =
+    typeof payload.mediaUrl === "string" && payload.mediaUrl.trim().length > 0
+      ? payload.mediaUrl.trim()
+      : null;
+  const photoUrl = rawMedia ? resolveAbsoluteMediaUrl(rawMedia) : null;
   const tally: Tally = { sent: 0, failed: 0, blocked: 0 };
 
   for (const recipient of recipients) {
     await reserveSendSlot();
     try {
-      await sendTelegramMessage(recipient.telegramUserId, text, {
-        disableWebPagePreview: true,
-      });
+      if (photoUrl) {
+        await sendTelegramPhoto(recipient.telegramUserId, photoUrl, caption);
+      } else {
+        await sendTelegramMessage(recipient.telegramUserId, caption, {
+          disableWebPagePreview: true,
+        });
+      }
       tally.sent += 1;
     } catch (error) {
       const message = (error as Error).message;

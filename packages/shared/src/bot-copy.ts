@@ -32,10 +32,10 @@ export const DEFAULT_BOT_COPY: BotCopyConfig = {
   welcome: [
     "سلام {name}!",
     "",
-    "به ربات خرید HMRAY خوش اومدی.",
+    "خوش اومدی به HMRAY — همراه خرید از خارج.",
     "کد مشتری تو: {customerCode}",
     "",
-    "از دکمه‌های پایین هر کاری خواستی رو انجام بده.",
+    "از منوی پایین شروع کن؛ هر وقت خواستی هستیم.",
   ].join("\n"),
   welcomeBack: "سلام {name}، خوش برگشتی!",
   channelGateMessage: [
