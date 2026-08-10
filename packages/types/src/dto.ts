@@ -27,6 +27,7 @@ export interface RequestItemDto {
   id: string;
   displayIndex: number;
   productCode: string;
+  title?: string;
   originalUrl?: string;
   images: string[];
   status: RequestItemStatus;

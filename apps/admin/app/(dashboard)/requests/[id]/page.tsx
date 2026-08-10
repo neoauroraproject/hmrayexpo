@@ -26,6 +26,7 @@ interface RequestUser {
 
 interface RequestItemRow {
   id: string;
+  title?: string | null;
   originalUrl?: string | null;
   userNote?: string | null;
   price?: string | number | null;
@@ -380,6 +381,11 @@ export default function RequestWorkspacePage() {
                               آیتم #{idx}
                               {item.productCode ? ` · ${item.productCode}` : ""}
                             </span>
+                            {item.title ? (
+                              <p className="text-sm font-medium text-slate-900 mb-1 line-clamp-2">
+                                {item.title}
+                              </p>
+                            ) : null}
                             {item.originalUrl && (
                               <a
                                 href={item.originalUrl}
@@ -390,7 +396,7 @@ export default function RequestWorkspacePage() {
                                 لینک محصول <ExternalLink className="w-3 h-3" />
                               </a>
                             )}
-                            {!thumb && item.originalUrl && (
+                            {item.originalUrl && (!thumb || !item.title) && (
                               <button
                                 type="button"
                                 onClick={() => void handleRefreshPreview(item.id)}
@@ -399,7 +405,7 @@ export default function RequestWorkspacePage() {
                               >
                                 {refreshingPreviewId === item.id
                                   ? "در حال بروزرسانی…"
-                                  : "بروزرسانی عکس"}
+                                  : "بروزرسانی عکس و عنوان"}
                               </button>
                             )}
                             {item.status && (

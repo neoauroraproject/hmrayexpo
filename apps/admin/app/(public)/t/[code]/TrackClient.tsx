@@ -6,6 +6,7 @@ import { apiFetch } from "../../../../lib/api";
 interface TrackItem {
   displayIndex: number;
   productCode: string;
+  title: string | null;
   originalUrl: string | null;
   images: string[];
   userNote: string | null;
@@ -252,8 +253,8 @@ export function TrackClient({ code }: { code: string }) {
                     </div>
                   )}
                   <div className="min-w-0 flex-1 pt-0.5">
-                    <div className="text-sm text-[#1c2420]">
-                      کالا {String(item.displayIndex).padStart(2, "0")}
+                    <div className="text-sm leading-snug text-[#1c2420]">
+                      {item.title?.trim() || `کالا ${String(item.displayIndex).padStart(2, "0")}`}
                     </div>
                     <div className="mt-1 font-mono text-[11px] text-[#7a8680]" dir="ltr">
                       {item.productCode}

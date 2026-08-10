@@ -317,6 +317,8 @@ model RequestItem {
   requestId         String
   displayIndex      Int
   productCode       String
+  /// Scraped product title from link preview (og:title), when available.
+  title             String?
   originalUrl       String?
   images            String[]
   telegramMessageId BigInt?

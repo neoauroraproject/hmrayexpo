@@ -49,6 +49,7 @@ export interface BotRequestItem {
   id: string;
   displayIndex: number;
   productCode: string;
+  title?: string | null;
   originalUrl: string | null;
   images: string[];
   status: string;
@@ -104,6 +105,7 @@ export interface PublicTrackDto {
     items: Array<{
       displayIndex: number;
       productCode: string;
+      title?: string | null;
       originalUrl: string | null;
       images: string[];
       userNote: string | null;

@@ -18,7 +18,7 @@ import { formatToman, generateProductCode, generateRequestId } from "@hmray/shar
 import { PrismaService } from "../../common/prisma/prisma.service";
 import { FA } from "../../common/errors/messages";
 import { uniqueCode } from "../../common/utils/identifiers";
-import { fetchOgImage } from "../../common/utils/link-preview";
+import { fetchLinkPreview } from "../../common/utils/link-preview";
 import { pageArgs, paginated, type Paginated } from "../../common/utils/pagination";
 import {
   canTransitionRequest,
@@ -80,11 +80,16 @@ export class RequestsService {
     }
 
     let images = dto.images ?? [];
+    let title: string | null = null;
     if (dto.originalUrl && images.length === 0) {
-      const ogImage = await fetchOgImage(dto.originalUrl);
-      if (ogImage) {
-        images = [ogImage];
+      const preview = await fetchLinkPreview(dto.originalUrl);
+      if (preview.image) {
+        images = [preview.image];
       }
+      title = preview.title;
+    } else if (dto.originalUrl) {
+      const preview = await fetchLinkPreview(dto.originalUrl);
+      title = preview.title;
     }
 
     return this.prisma.requestItem.create({
@@ -92,6 +97,7 @@ export class RequestsService {
         requestId: request.id,
         displayIndex: await this.nextDisplayIndex(request.id),
         productCode: this.productCodeFor(request.type),
+        title,
         originalUrl: dto.originalUrl ?? null,
         images,
         userNote: dto.userNote ?? null,
@@ -129,7 +135,7 @@ export class RequestsService {
     return stripBigInt(updated);
   }
 
-  /** Re-fetch OG/Twitter image for an existing item that has originalUrl but no image. */
+  /** Re-fetch OG title/image for an existing item that has originalUrl. */
   async refreshItemPreview(requestId: string, itemId: string) {
     const request = await this.requireRequest(requestId);
     const item = await this.prisma.requestItem.findFirst({
@@ -142,16 +148,74 @@ export class RequestsService {
       throw new BadRequestException("item has no originalUrl to preview");
     }
 
-    const ogImage = await fetchOgImage(item.originalUrl);
-    if (!ogImage) {
+    const preview = await fetchLinkPreview(item.originalUrl);
+    if (!preview.image && !preview.title) {
       return stripBigInt(item);
     }
 
     const updated = await this.prisma.requestItem.update({
       where: { id: item.id },
-      data: { images: [ogImage] },
+      data: {
+        ...(preview.image ? { images: [preview.image] } : {}),
+        ...(preview.title ? { title: preview.title } : {}),
+      },
     });
     return stripBigInt(updated);
+  }
+
+  /** Lazy backfill for public track / customer views. */
+  private async enrichItemsMissingPreview<
+    T extends {
+      id: string;
+      originalUrl: string | null;
+      images: string[];
+      title?: string | null;
+    },
+  >(items: T[]): Promise<T[]> {
+    const needing = items.filter(
+      (item) =>
+        item.originalUrl &&
+        ((!item.images || item.images.length === 0) || !item.title),
+    );
+    if (needing.length === 0) return items;
+
+    const updates = await Promise.all(
+      needing.map(async (item) => {
+        try {
+          const preview = await fetchLinkPreview(item.originalUrl!);
+          if (!preview.image && !preview.title) return null;
+          const data: { images?: string[]; title?: string } = {};
+          if (preview.image && (!item.images || item.images.length === 0)) {
+            data.images = [preview.image];
+          }
+          if (preview.title && !item.title) {
+            data.title = preview.title;
+          }
+          if (Object.keys(data).length === 0) return null;
+          const updated = await this.prisma.requestItem.update({
+            where: { id: item.id },
+            data,
+            select: { id: true, images: true, title: true },
+          });
+          return updated;
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    const byId = new Map(updates.filter(Boolean).map((row) => [row!.id, row!]));
+    if (byId.size === 0) return items;
+
+    return items.map((item) => {
+      const patch = byId.get(item.id);
+      if (!patch) return item;
+      return {
+        ...item,
+        images: patch.images.length > 0 ? patch.images : item.images,
+        title: patch.title ?? item.title ?? null,
+      };
+    });
   }
 
   /**
@@ -347,8 +411,10 @@ export class RequestsService {
         where: { status: { not: RequestItemStatus.REMOVED } },
         orderBy: { displayIndex: "asc" as const },
         select: {
+          id: true,
           displayIndex: true,
           productCode: true,
+          title: true,
           originalUrl: true,
           images: true,
           userNote: true,
@@ -413,6 +479,7 @@ export class RequestsService {
     }
 
     const order = request.orders[0] ?? null;
+    const items = await this.enrichItemsMissingPreview(request.items);
 
     const payments = await this.prisma.payment.findMany({
       where: {
@@ -441,7 +508,7 @@ export class RequestsService {
         status: request.status,
         submittedAt: request.submittedAt,
         storeName: request.storeName,
-        items: request.items,
+        items: items.map(({ id: _id, ...item }) => item),
       },
       quotes: request.quotes.map((quote) => ({
         code: quote.code,

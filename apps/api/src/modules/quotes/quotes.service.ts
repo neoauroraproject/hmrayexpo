@@ -630,6 +630,7 @@ export class QuotesService {
       price: Prisma.Decimal | null;
       currency: Currency | null;
       images: string[];
+      title: string | null;
       userNote: string | null;
     }>,
     rates: RateMap,
@@ -646,7 +647,7 @@ export class QuotesService {
           requestItemId: source?.id ?? null,
           displayIndex: index + 1,
           productCode: item.productCode ?? source?.productCode ?? `IT-${index + 1}`,
-          title: item.title ?? source?.userNote ?? null,
+          title: item.title ?? source?.title ?? source?.userNote ?? null,
           quantity,
           price,
           currency,
@@ -666,7 +667,7 @@ export class QuotesService {
           requestItemId: item.id,
           displayIndex: index + 1,
           productCode: item.productCode,
-          title: item.userNote,
+          title: item.title ?? item.userNote,
           quantity: item.quantity,
           price,
           currency,
