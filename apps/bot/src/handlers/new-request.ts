@@ -1,7 +1,10 @@
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import type { ApiClient, BotRequestItem } from "../api-client.js";
 import * as L from "../copy.js";
-import { formatBotHtml, NO_LINK_PREVIEW } from "../format-message.js";
+import {
+  NO_LINK_PREVIEW,
+  normalizeBotCopyNewlines,
+} from "../format-message.js";
 import { matchMenu } from "../match-menu.js";
 import {
   collectingKeyboard,
@@ -28,6 +31,29 @@ function noteWithoutUrl(text: string, url: string | undefined): string | undefin
   return rest.length > 0 ? rest : undefined;
 }
 
+/** Prefer HTML formatting; if Telegram rejects entities, fall back to plain text. */
+async function replyCopy(
+  ctx: Context,
+  source: string,
+  extra: Parameters<Context["reply"]>[1] = {},
+): Promise<void> {
+  const plain = normalizeBotCopyNewlines(source);
+  const html = formatBotHtml(source);
+  try {
+    await ctx.reply(html, {
+      parse_mode: "HTML",
+      ...NO_LINK_PREVIEW,
+      ...extra,
+    });
+  } catch (err) {
+    console.warn("[hmray-bot] HTML reply failed, falling back to plain:", err);
+    await ctx.reply(plain, {
+      ...NO_LINK_PREVIEW,
+      ...extra,
+    });
+  }
+}
+
 async function openRequest(
   ctx: BotContext,
   api: ApiClient,
@@ -48,11 +74,7 @@ async function openRequest(
     ctx.session.noteItemId = undefined;
 
     const text = introMessage?.trim() || L.REQUEST_OPENED_FIRST_ITEM;
-    await ctx.reply(formatBotHtml(text), {
-      parse_mode: "HTML",
-      reply_markup: collectingKeyboard(),
-      ...NO_LINK_PREVIEW,
-    });
+    await replyCopy(ctx, text, { reply_markup: collectingKeyboard() });
   } catch (err) {
     await ctx.reply(L.friendlyError(err));
   }
@@ -64,12 +86,20 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
       await sayBusy(ctx);
       return;
     }
-    const copy = getBotCopy();
-    await ctx.reply(formatBotHtml(copy.chooseRequestType || L.CHOOSE_REQUEST_TYPE), {
-      parse_mode: "HTML",
-      reply_markup: requestTypeInlineKeyboard(),
-      ...NO_LINK_PREVIEW,
-    });
+    try {
+      const copy = getBotCopy();
+      const keyboard = requestTypeInlineKeyboard();
+      if (keyboard.inline_keyboard.length === 0) {
+        await ctx.reply("فعلاً هیچ سرویسی برای ثبت درخواست فعال نیست.");
+        return;
+      }
+      await replyCopy(ctx, copy.chooseRequestType || L.CHOOSE_REQUEST_TYPE, {
+        reply_markup: keyboard,
+      });
+    } catch (err) {
+      console.error("[hmray-bot] newRequest handler failed:", err);
+      await ctx.reply(L.friendlyError(err));
+    }
   });
 
   bot.callbackQuery("newreq:temu", async (ctx) => {
@@ -122,10 +152,8 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
       const copy = getBotCopy();
       const intro =
         found.type === "TEMU" ? copy.temuStartMessage : copy.externalStartMessage;
-      await ctx.reply(formatBotHtml(intro || L.REQUEST_OPENED_FIRST_ITEM), {
-        parse_mode: "HTML",
+      await replyCopy(ctx, intro || L.REQUEST_OPENED_FIRST_ITEM, {
         reply_markup: collectingKeyboard(),
-        ...NO_LINK_PREVIEW,
       });
     } catch (err) {
       await ctx.reply(L.friendlyError(err));

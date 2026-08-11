@@ -1,10 +1,13 @@
 /**
  * Light Markdown → Telegram HTML for admin-editable bot copy.
  * Supports: [label](https://...), **bold**, ### headings, real paragraphs.
+ *
+ * Important: Telegram HTML only allows a small tag set. Use `<br>` (not `<br/>`).
  */
 
 export function normalizeBotCopyNewlines(source: string): string {
   let text = String(source ?? "")
+    .replace(/\u0000/g, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     // Literal "\n" sequences sometimes appear after bad paste/escape
@@ -32,12 +35,12 @@ export function normalizeBotCopyNewlines(source: string): string {
 export function formatBotHtml(source: string): string {
   let text = normalizeBotCopyNewlines(source);
 
-  const links: string[] = [];
+  const links: Array<{ label: string; url: string }> = [];
   text = text.replace(
     /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
     (_match, label: string, url: string) => {
-      const token = `\u0000L${links.length}\u0000`;
-      links.push(`<a href="${escapeAttr(url)}">${escapeHtml(label)}</a>`);
+      const token = `§§L${links.length}§§`;
+      links.push({ label, url });
       return token;
     },
   );
@@ -46,14 +49,18 @@ export function formatBotHtml(source: string): string {
   // Headings while newlines still exist
   text = text.replace(/^###\s+(.+)$/gm, "<b>$1</b>");
   text = text.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-  // Explicit <br/> keeps paragraphs reliably in Telegram HTML mode
-  text = text.replace(/\n/g, "<br/>");
-  text = text.replace(/\u0000L(\d+)\u0000/g, (_m, index: string) => links[Number(index)] ?? "");
+  // Telegram HTML: only `<br>` is documented (self-closing slash can break parse)
+  text = text.replace(/\n/g, "<br>");
+  text = text.replace(/§§L(\d+)§§/g, (_m, index: string) => {
+    const link = links[Number(index)];
+    if (!link) return "";
+    return `<a href="${escapeAttr(link.url)}">${escapeHtml(link.label)}</a>`;
+  });
   return text;
 }
 
+/** Prefer legacy flag — widely supported and avoids entity parse surprises. */
 export const NO_LINK_PREVIEW = {
-  link_preview_options: { is_disabled: true },
   disable_web_page_preview: true,
 } as const;
 
