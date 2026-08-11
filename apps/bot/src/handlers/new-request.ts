@@ -2,6 +2,7 @@ import type { Bot, Context } from "grammy";
 import type { ApiClient, BotRequestItem } from "../api-client.js";
 import * as L from "../copy.js";
 import {
+  formatBotHtml,
   NO_LINK_PREVIEW,
   normalizeBotCopyNewlines,
 } from "../format-message.js";

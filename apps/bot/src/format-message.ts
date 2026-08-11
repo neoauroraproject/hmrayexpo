@@ -59,9 +59,9 @@ export function formatBotHtml(source: string): string {
   return text;
 }
 
-/** Prefer legacy flag — widely supported and avoids entity parse surprises. */
+/** Disable Telegram link previews on bot copy that may contain URLs. */
 export const NO_LINK_PREVIEW = {
-  disable_web_page_preview: true,
+  link_preview_options: { is_disabled: true },
 } as const;
 
 function escapeHtml(value: string): string {
