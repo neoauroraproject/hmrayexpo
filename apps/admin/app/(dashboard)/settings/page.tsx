@@ -148,6 +148,16 @@ function mergeBotCopy(partial: unknown): BotCopyState {
   };
 }
 
+/** Keep real line breaks when saving/loading admin bot copy. */
+function normalizeNewlines(value: string): string {
+  return String(value ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .trim();
+}
+
 const emptyPaymentForm = (): PaymentForm => ({
   title: "",
   description: "",
@@ -297,9 +307,20 @@ export default function SettingsPage() {
     e.preventDefault();
     setSavingCopy(true);
     try {
+      const normalized = {
+        ...botCopy,
+        welcome: normalizeNewlines(botCopy.welcome),
+        welcomeBack: normalizeNewlines(botCopy.welcomeBack),
+        channelGateMessage: normalizeNewlines(botCopy.channelGateMessage),
+        rulesText: normalizeNewlines(botCopy.rulesText),
+        chooseRequestType: normalizeNewlines(botCopy.chooseRequestType),
+        temuStartMessage: normalizeNewlines(botCopy.temuStartMessage),
+        externalStartMessage: normalizeNewlines(botCopy.externalStartMessage),
+        maintenanceMessage: normalizeNewlines(botCopy.maintenanceMessage),
+      };
       const data = await apiFetch<any>("/admin/settings", {
         method: "PATCH",
-        body: JSON.stringify({ values: { botCopy } }),
+        body: JSON.stringify({ values: { botCopy: normalized } }),
       });
       setSettings((prev: any) => ({ ...prev, values: data.values }));
       setBotCopy(mergeBotCopy(data.values?.botCopy));
@@ -891,13 +912,14 @@ export default function SettingsPage() {
                 </label>
                 <Textarea
                   rows={14}
+                  className="whitespace-pre-wrap font-mono text-xs leading-6"
                   value={botCopy.chooseRequestType}
                   onChange={(e) =>
                     setBotCopy((c) => ({ ...c, chooseRequestType: e.target.value }))
                   }
                 />
                 <p className="mt-1 text-[11px] text-slate-500">
-                  پیش‌نمایش لینک در تلگرام برای این پیام غیرفعال است.
+                  Enter = خط جدید. اگر همه‌چیز یک خط است، یک‌بار «بازگردانی پیش‌فرض جدید» بزنید یا از Notepad دوباره paste کنید. پیش‌نمایش لینک در تلگرام خاموش است.
                 </p>
               </div>
               <div>
