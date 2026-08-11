@@ -548,7 +548,9 @@ export class RequestsService {
   async list(query: ListRequestsQueryDto): Promise<Paginated<unknown>> {
     const args = pageArgs(query.page, query.pageSize);
     const q = query.q?.trim();
+    // Draft baskets (bot opened but not finalized) stay invisible to ops.
     const where: Prisma.PurchaseRequestWhereInput = {
+      submittedAt: { not: null },
       ...(query.status ? { status: query.status } : {}),
       ...(query.type ? { type: query.type } : {}),
       ...(q
@@ -566,7 +568,7 @@ export class RequestsService {
     const [items, total] = await Promise.all([
       this.prisma.purchaseRequest.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
         skip: args.skip,
         take: args.take,
         include: {

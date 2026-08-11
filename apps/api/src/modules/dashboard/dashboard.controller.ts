@@ -35,8 +35,13 @@ export class DashboardController {
       totalCustomers,
       newCustomersToday,
       acceptedAwaitingPayment,
+      newSubmittedToday,
     ] = await Promise.all([
-      this.prisma.purchaseRequest.groupBy({ by: ["status"], _count: { _all: true } }),
+      this.prisma.purchaseRequest.groupBy({
+        by: ["status"],
+        where: { submittedAt: { not: null } },
+        _count: { _all: true },
+      }),
       this.prisma.quote.groupBy({ by: ["status"], _count: { _all: true } }),
       this.prisma.order.groupBy({ by: ["status"], _count: { _all: true } }),
       this.prisma.payment.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -54,6 +59,9 @@ export class DashboardController {
       this.prisma.user.count({ where: { createdAt: { gte: startOfToday } } }),
       // Accepted quotes with no order yet — the "waiting for money" queue.
       this.prisma.quote.count({ where: { status: QuoteStatus.ACCEPTED, order: null } }),
+      this.prisma.purchaseRequest.count({
+        where: { submittedAt: { gte: startOfToday } },
+      }),
     ]);
 
     const confirmedRevenue = confirmedTotal._sum.amount ?? null;
@@ -61,7 +69,7 @@ export class DashboardController {
     return {
       requests: {
         byStatus: countMap(requestsByStatus),
-        newToday: countOf(requestsByStatus, RequestStatus.REQUESTED),
+        newToday: newSubmittedToday,
       },
       quotes: {
         byStatus: countMap(quotesByStatus),

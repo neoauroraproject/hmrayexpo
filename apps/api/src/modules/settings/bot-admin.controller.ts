@@ -51,7 +51,7 @@ export class BotAdminController {
     const [pendingRequests, pendingPayments, openTickets, draftBroadcasts] =
       await Promise.all([
         this.prisma.purchaseRequest.count({
-          where: { status: RequestStatus.REQUESTED },
+          where: { status: RequestStatus.REQUESTED, submittedAt: { not: null } },
         }),
         this.prisma.payment.count({
           where: {

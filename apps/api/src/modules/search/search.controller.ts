@@ -49,6 +49,7 @@ export class SearchController {
       }),
       this.prisma.purchaseRequest.findMany({
         where: {
+          submittedAt: { not: null },
           OR: [
             { code: { contains: q, mode: insensitive } },
             { items: { some: { productCode: { contains: q, mode: insensitive } } } },
