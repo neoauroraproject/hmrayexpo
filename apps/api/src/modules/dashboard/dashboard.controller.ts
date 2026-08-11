@@ -4,7 +4,6 @@ import {
   OrderStatus,
   PaymentStatus,
   QuoteStatus,
-  RequestStatus,
   TicketStatus,
 } from "@hmray/database";
 import { formatToman } from "@hmray/shared";
@@ -107,10 +106,6 @@ function countMap<T extends string>(rows: Array<StatusCount<T>>): Record<string,
     out[row.status] = row._count._all;
   }
   return out;
-}
-
-function countOf<T extends string>(rows: Array<StatusCount<T>>, status: T): number {
-  return rows.find((row) => row.status === status)?._count._all ?? 0;
 }
 
 function sumExcept<T extends string>(rows: Array<StatusCount<T>>, exclude: T[]): number {
