@@ -24,7 +24,7 @@ const DEFAULT_BOT_COPY = {
   welcome: [
     "سلام {name} 👋",
     "",
-    "به HMRAY خوش آمدید.",
+    "به HMray Expo خوش آمدید.",
     "کد مشتری: {customerCode}",
     "",
     "از منوی پایین درخواست ثبت کنید، پرداخت کنید یا سفارشتان را پیگیری کنید.",
@@ -46,7 +46,43 @@ const DEFAULT_BOT_COPY = {
     "",
     "سوال؟ از «💬 پشتیبانی» پیام بدهید.",
   ].join("\n"),
-  chooseRequestType: "🛍️ از کجا می‌خرید؟\nیکی از گزینه‌ها را انتخاب کنید:",
+  chooseRequestType: [
+    "🛍 از کجا می‌خوای خرید کنی؟",
+    "",
+    "### 🛒 خرید از Temu",
+    "",
+    "[www.temu.com](https://www.temu.com)",
+    "",
+    "هر محصولی که می‌خوای رو از Temu پیدا کن و لینک یا عکسش رو برای ما بفرست. می‌تونی چندین محصول رو در یک درخواست اضافه کنی و در نهایت همه رو یکجا برات تهیه کنیم.",
+    "",
+    "امکان بررسی کالا قبل از ارسال به ایران هم وجود داره.",
+    "",
+    "💡 فعلاً هیچ پرداختی لازم نیست؛ فقط محصولاتت رو بفرست و در پایان **ثبت نهایی** کن تا قیمت رو برات محاسبه کنیم.",
+    "",
+    "### 🌎 خرید از سایر فروشگاه‌ها",
+    "",
+    "لینک محصولت رو از هر فروشگاه و هر کشوری که هست برامون بفرست.",
+    "",
+    "شرایط خرید، ارسال، تجمیع کالا و مرجوعی هر فروشگاه متفاوته و قبل از خرید بررسی می‌شه.",
+    "",
+    "💰 قیمت و شرایط نهایی همیشه قبل از پرداخت بهت اعلام می‌شه.",
+  ].join("\n"),
+  temuStartMessage: [
+    "🧡 خرید از Temu",
+    "",
+    "لینک یا عکس محصول Temu را بفرستید.",
+    "می‌توانید توضیح هم کنارش بنویسید؛ مثلاً رنگ / سایز.",
+    "",
+    "هر تعداد کالا اضافه کنید؛ در پایان «✅ ثبت نهایی» را بزنید.",
+  ].join("\n"),
+  externalStartMessage: [
+    "🏪 خرید از سایر فروشگاه‌ها",
+    "",
+    "لینک یا عکس محصول را بفرستید.",
+    "می‌توانید توضیح هم کنارش بنویسید.",
+    "",
+    "هر تعداد کالا اضافه کنید؛ در پایان «✅ ثبت نهایی» را بزنید.",
+  ].join("\n"),
   maintenanceMessage: "🛠 ربات موقتاً در حال به‌روزرسانی است.\nلطفاً کمی بعد دوباره سر بزنید.",
   menus: {
     newRequest: "🛒 ثبت درخواست خرید",
@@ -58,8 +94,8 @@ const DEFAULT_BOT_COPY = {
     support: "💬 پشتیبانی",
   },
   services: {
-    temu: "🧡 Temu",
-    external: "🏪 فروشگاه‌های دیگر",
+    temu: "🛒 خرید از Temu",
+    external: "🌎 خرید از سایر فروشگاه‌ها",
     temuEnabled: true,
     externalEnabled: true,
   },
@@ -849,22 +885,51 @@ export default function SettingsPage() {
                   onChange={(e) => setBotCopy((c) => ({ ...c, rulesText: e.target.value }))}
                 />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  انتخاب نوع درخواست
+                  متن انتخاب نوع درخواست (چندخطی — پشتیبانی از ### عنوان، **ضخیم**، [متن](لینک))
                 </label>
-                <Input
+                <Textarea
+                  rows={14}
                   value={botCopy.chooseRequestType}
                   onChange={(e) =>
                     setBotCopy((c) => ({ ...c, chooseRequestType: e.target.value }))
                   }
                 />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  پیش‌نمایش لینک در تلگرام برای این پیام غیرفعال است.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
+                  پیام بعد از انتخاب Temu
+                </label>
+                <Textarea
+                  rows={6}
+                  value={botCopy.temuStartMessage}
+                  onChange={(e) =>
+                    setBotCopy((c) => ({ ...c, temuStartMessage: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  پیام بعد از انتخاب سایر فروشگاه‌ها
+                </label>
+                <Textarea
+                  rows={6}
+                  value={botCopy.externalStartMessage}
+                  onChange={(e) =>
+                    setBotCopy((c) => ({ ...c, externalStartMessage: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-slate-700 mb-1">
                   پیام حالت تعمیرات
                 </label>
-                <Input
+                <Textarea
+                  rows={3}
                   value={botCopy.maintenanceMessage}
                   onChange={(e) =>
                     setBotCopy((c) => ({ ...c, maintenanceMessage: e.target.value }))

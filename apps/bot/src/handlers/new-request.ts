@@ -1,6 +1,7 @@
 import type { Bot } from "grammy";
 import type { ApiClient, BotRequestItem } from "../api-client.js";
 import * as L from "../copy.js";
+import { formatBotHtml, NO_LINK_PREVIEW } from "../format-message.js";
 import { matchMenu } from "../match-menu.js";
 import {
   collectingKeyboard,
@@ -32,6 +33,7 @@ async function openRequest(
   api: ApiClient,
   type: "TEMU" | "EXTERNAL_STORE",
   storeName?: string,
+  introMessage?: string,
 ): Promise<void> {
   const telegramUserId = requireTelegramUserId(ctx);
   if (!telegramUserId) return;
@@ -45,7 +47,12 @@ async function openRequest(
     ctx.session.openRequestItemCount = 0;
     ctx.session.noteItemId = undefined;
 
-    await ctx.reply(L.REQUEST_OPENED_FIRST_ITEM, { reply_markup: collectingKeyboard() });
+    const text = introMessage?.trim() || L.REQUEST_OPENED_FIRST_ITEM;
+    await ctx.reply(formatBotHtml(text), {
+      parse_mode: "HTML",
+      reply_markup: collectingKeyboard(),
+      ...NO_LINK_PREVIEW,
+    });
   } catch (err) {
     await ctx.reply(L.friendlyError(err));
   }
@@ -58,8 +65,10 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
       return;
     }
     const copy = getBotCopy();
-    await ctx.reply(copy.chooseRequestType || L.CHOOSE_REQUEST_TYPE, {
+    await ctx.reply(formatBotHtml(copy.chooseRequestType || L.CHOOSE_REQUEST_TYPE), {
+      parse_mode: "HTML",
       reply_markup: requestTypeInlineKeyboard(),
+      ...NO_LINK_PREVIEW,
     });
   });
 
@@ -69,11 +78,12 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
       await sayBusy(ctx);
       return;
     }
-    if (!getBotCopy().services.temuEnabled) {
+    const copy = getBotCopy();
+    if (!copy.services.temuEnabled) {
       await ctx.reply(L.ERROR_GENERIC);
       return;
     }
-    await openRequest(ctx, api, "TEMU");
+    await openRequest(ctx, api, "TEMU", undefined, copy.temuStartMessage);
   });
 
   bot.callbackQuery("newreq:external", async (ctx) => {
@@ -87,7 +97,7 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
       return;
     }
     ctx.session.mode = "awaiting_store_name";
-    await ctx.reply(L.ASK_STORE_NAME);
+    await ctx.reply(L.ASK_STORE_NAME, { ...NO_LINK_PREVIEW });
   });
 
   bot.callbackQuery(/^req:continue:(.+)$/, async (ctx) => {
@@ -109,7 +119,14 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
       ctx.session.openRequestType = found.type as "TEMU" | "EXTERNAL_STORE";
       ctx.session.openRequestItemCount = found.items.length;
       ctx.session.noteItemId = undefined;
-      await ctx.reply(L.REQUEST_OPENED_FIRST_ITEM, { reply_markup: collectingKeyboard() });
+      const copy = getBotCopy();
+      const intro =
+        found.type === "TEMU" ? copy.temuStartMessage : copy.externalStartMessage;
+      await ctx.reply(formatBotHtml(intro || L.REQUEST_OPENED_FIRST_ITEM), {
+        parse_mode: "HTML",
+        reply_markup: collectingKeyboard(),
+        ...NO_LINK_PREVIEW,
+      });
     } catch (err) {
       await ctx.reply(L.friendlyError(err));
     }
@@ -198,7 +215,13 @@ export function registerNewRequestHandlers(bot: Bot<BotContext>, api: ApiClient)
     (ctx) => ctx.session.mode === "awaiting_store_name",
     async (ctx) => {
       const storeName = ctx.message.text.trim();
-      await openRequest(ctx, api, "EXTERNAL_STORE", storeName === L.BTN_SKIP ? undefined : storeName);
+      await openRequest(
+        ctx,
+        api,
+        "EXTERNAL_STORE",
+        storeName === L.BTN_SKIP ? undefined : storeName,
+        getBotCopy().externalStartMessage,
+      );
     },
   );
 
